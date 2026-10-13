@@ -1,7 +1,7 @@
-// Regenerates index.html from every .html/.md file under this folder, newest first.
+// Regenerates index.html from every .html/.md/.pdf file under this folder, newest first.
 // Run: node build-index.mjs
-// Title  <- <title> (html) or first "# " heading (md)
-// Detail <- <meta name="description"> (html) or first paragraph (md)
+// Title  <- <title> (html), first "# " heading (md), or file name (pdf)
+// Detail <- <meta name="description"> (html), first paragraph (md), or file size (pdf)
 // Sort   <- file modified time. It is baked into index.html, so re-run after adding/editing files.
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, extname, basename, sep } from 'node:path';
@@ -21,14 +21,19 @@ function walk(dir, out = []) {
     const full = join(dir, name);
     const st = statSync(full);
     if (st.isDirectory()) walk(full, out);
-    else if (/\.(html?|md)$/i.test(name) && !SKIP_FILES.has(relative(root, full))) out.push({ full, st });
+    else if (/\.(html?|md|pdf)$/i.test(name) && !SKIP_FILES.has(relative(root, full))) out.push({ full, st });
   }
   return out;
 }
 
-function describe(full) {
-  const text = readFileSync(full, 'utf8');
+function describe(full, st) {
   const ext = extname(full).toLowerCase();
+  // PDF is binary: metadata is unreliable to parse without a library, so use the file name and size.
+  if (ext === '.pdf') {
+    const kb = st.size / 1024;
+    return { title: basename(full, extname(full)), desc: kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(kb))} KB`, kind: 'PDF' };
+  }
+  const text = readFileSync(full, 'utf8');
   let title = '', desc = '';
   if (ext === '.md') {
     title = (text.match(/^#\s+(.+)$/m) || [])[1] || '';
@@ -45,7 +50,7 @@ const pad = n => String(n).padStart(2, '0');
 const fmt = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 const items = walk(root)
-  .map(({ full, st }) => ({ ...describe(full), href: relative(root, full).split(sep).map(encodeURIComponent).join('/'), path: relative(root, full).split(sep).join('/'), mtime: st.mtime }))
+  .map(({ full, st }) => ({ ...describe(full, st), href: relative(root, full).split(sep).map(encodeURIComponent).join('/'), path: relative(root, full).split(sep).join('/'), mtime: st.mtime }))
   .sort((a, b) => b.mtime - a.mtime || a.path.localeCompare(b.path));
 
 const cards = items.map(i => `  <a class="card" href="${i.href}" data-q="${esc((i.title + ' ' + i.desc + ' ' + i.path).toLowerCase())}">
