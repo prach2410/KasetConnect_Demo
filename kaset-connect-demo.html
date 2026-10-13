@@ -1,0 +1,1761 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Inline favicon: stops the browser's automatic /favicon.ico request when served over HTTP. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='2' fill='%23037493'/%3E%3Ctext x='8' y='12' font-size='10' font-family='Arial' font-weight='700' text-anchor='middle' fill='%23fff'%3EK%3C/text%3E%3C/svg%3E">
+<title>Kaset Connect Demo — โครงการแคนตาลูป (ต้นแบบเพื่อทดสอบ workflow)</title>
+<meta name="description" content="ต้นแบบ interactive สำหรับทดสอบความเข้าใจ workflow: ข้อมูลตลาด → แนวทางการผลิต → สรุปเพื่อตัดสินใจ → เริ่มโครงการ → การดำเนินงาน (ไม่ใช่ระบบจริง)">
+<!--
+  Kaset Connect Demo — standalone interactive demo capture.
+  Purpose: workflow validation with a farm operator, not product validation.
+  Self-contained: inline CSS (TUI design system, Design/design.md), inline SVG icons, inline JS + mock data.
+  No network, no backend, no login, no build. State lives in memory (+ sessionStorage for this tab only).
+  This file is a prototype of workflow hypotheses; it does not define the domain model or architecture.
+-->
+<style>
+/* ---------------------------------------------------------------------------
+   1. PRIMITIVES — raw values. Do not use directly in components.
+   --------------------------------------------------------------------------- */
+:root{
+  /* -- neutrals -- */
+  --tui-color-white:#ffffff;
+  --tui-color-black:#000000;
+  --tui-color-white-alpha-00:rgba(255,255,255,0);
+  --tui-color-white-alpha-05:rgba(255,255,255,.05);
+  --tui-color-white-alpha-20:rgba(255,255,255,.2);
+  --tui-color-black-alpha-02:rgba(0,0,0,.02);
+  --tui-color-black-alpha-50:rgba(0,0,0,.5);
+
+  --tui-color-grey-100:#f5f6f6;  --tui-color-grey-200:#e0e2e3;  --tui-color-grey-300:#c6c8cb;
+  --tui-color-grey-400:#a9abaf;  --tui-color-grey-500:#8c8e91;  --tui-color-grey-600:#707173;
+  --tui-color-grey-700:#555658;  --tui-color-grey-800:#3d3e3e;  --tui-color-grey-900:#282828;
+  --tui-color-grey-950:#161616;
+  --tui-color-grey-100-alpha-10:rgba(245,246,246,.1);
+  --tui-color-grey-900-alpha-10:rgba(41,41,41,.1);
+  --tui-color-grey-950-alpha-05:rgba(22,22,22,.05);
+
+  --tui-color-cool-grey-100:#f2f3f4; --tui-color-cool-grey-200:#dcdee1; --tui-color-cool-grey-300:#c1c5cb;
+  --tui-color-cool-grey-400:#a2aab4; --tui-color-cool-grey-500:#858d98; --tui-color-cool-grey-600:#69707a;
+  --tui-color-cool-grey-700:#4e545d; --tui-color-cool-grey-800:#353a41; --tui-color-cool-grey-900:#1f2328;
+  --tui-color-cool-grey-950:#0b0d10;
+  --tui-color-cool-grey-100-alpha-10:rgba(242,243,244,.1);
+  --tui-color-cool-grey-100-alpha-20:rgba(242,243,244,.2);
+  --tui-color-cool-grey-100-alpha-30:rgba(242,243,244,.3);
+  --tui-color-cool-grey-800-alpha-10:rgba(53,58,65,.1);
+  --tui-color-cool-grey-800-alpha-20:rgba(53,58,65,.2);
+  --tui-color-cool-grey-900-alpha-30:rgba(31,35,40,.3);
+  --tui-color-cool-grey-700-alpha-70:rgba(78,84,93,.7);
+
+  /* -- ocean = brand / action -- */
+  --tui-color-ocean-100:#e0f2ff; --tui-color-ocean-200:#a8dfff; --tui-color-ocean-300:#3ccaff;
+  --tui-color-ocean-400:#00aede; --tui-color-ocean-500:#0291b7; --tui-color-ocean-600:#037493;
+  --tui-color-ocean-700:#035970; --tui-color-ocean-800:#024051; --tui-color-ocean-900:#012935;
+  --tui-color-ocean-950:#00131a;
+
+  /* -- signal: info -- */
+  --tui-color-blue-100:#ecf3ff; --tui-color-blue-200:#cbdfff; --tui-color-blue-300:#9ec7ff;
+  --tui-color-blue-400:#62acff; --tui-color-blue-500:#008ff0; --tui-color-blue-600:#0071c5;
+  --tui-color-blue-700:#005499; --tui-color-blue-800:#00396f; --tui-color-blue-900:#002248;
+  --tui-color-blue-950:#000b20;
+
+  /* -- signal: positive -- */
+  --tui-color-green-100:#e5fceb; --tui-color-green-200:#9ff7b7; --tui-color-green-300:#6de28f;
+  --tui-color-green-400:#55c474; --tui-color-green-500:#3ea359; --tui-color-green-600:#2a813f;
+  --tui-color-green-700:#185f28; --tui-color-green-800:#084114; --tui-color-green-900:#002704;
+  --tui-color-green-950:#000f01;
+
+  /* -- signal: caution -- */
+  --tui-color-yellow-100:#fff7de; --tui-color-yellow-200:#ffe38e; --tui-color-yellow-300:#f6c800;
+  --tui-color-yellow-400:#daaa00; --tui-color-yellow-500:#ba8900; --tui-color-yellow-600:#976900;
+  --tui-color-yellow-700:#744b00; --tui-color-yellow-800:#523000; --tui-color-yellow-900:#341a00;
+  --tui-color-yellow-950:#170700;
+
+  /* -- signal: critical -- */
+  --tui-color-red-100:#ffefef; --tui-color-red-200:#ffd4d4; --tui-color-red-300:#ffb0b0;
+  --tui-color-red-400:#ff8485; --tui-color-red-500:#ff454a; --tui-color-red-600:#df001a;
+  --tui-color-red-700:#aa0014; --tui-color-red-800:#79010d; --tui-color-red-900:#4b0308;
+  --tui-color-red-950:#200102;
+
+  /* -- extended (charts / categorical) -- */
+  --tui-color-jade-400:#37bd93;   --tui-color-jade-600:#007e64;
+  --tui-color-heliotrope-400:#cd8aff; --tui-color-heliotrope-600:#b400e6;
+  --tui-color-gamboge-400:#ec9500;    --tui-color-gamboge-600:#9a6300;
+  --tui-color-bondiblue-400:#34b9c8;  --tui-color-bondiblue-600:#007b8a;
+  --tui-color-avocado-400:#8cb735;    --tui-color-avocado-600:#517b00;
+  --tui-color-fuschia-400:#ea7eec;    --tui-color-fuschia-600:#c117b9;
+  --tui-color-olive-400:#adad46;      --tui-color-olive-600:#6d7407;
+
+  /* -- spacing scale (4px base) -- */
+  --tui-space-0x:0px;  --tui-space-05x:2px; --tui-space-1x:4px;  --tui-space-2x:8px;
+  --tui-space-3x:12px; --tui-space-4x:16px; --tui-space-5x:20px; --tui-space-6x:24px;
+  --tui-space-7x:28px; --tui-space-8x:32px; --tui-space-9x:36px; --tui-space-10x:40px;
+  --tui-space-11x:44px;--tui-space-12x:48px;--tui-space-13x:52px;--tui-space-14x:56px;
+  --tui-space-15x:60px;--tui-space-16x:64px;--tui-space-17x:68px;--tui-space-18x:72px;
+
+  /* -- type scale -- */
+  --tui-typography-size-01:10px; --tui-typography-size-02:11px; --tui-typography-size-03:12px;
+  --tui-typography-size-04:14px; --tui-typography-size-05:16px; --tui-typography-size-06:18px;
+  --tui-typography-size-07:20px; --tui-typography-size-08:23px; --tui-typography-size-09:26px;
+  --tui-typography-size-10:29px; --tui-typography-size-11:33px; --tui-typography-size-12:37px;
+
+  --tui-typography-family-system:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
+    "Noto Sans Thai","IBM Plex Sans Thai","Leelawadee UI","Tahoma",Helvetica,Arial,sans-serif,"Apple Color Emoji";
+  --tui-typography-family-mono:SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+  /* Brand face BMWGroupTNCondensedPro-Medium is not web-available here → system fallback */
+  --tui-typography-family-title:var(--tui-typography-family-system);
+
+  --tui-typography-weight-regular:400;
+  --tui-typography-weight-strong:600;
+  --tui-typography-weight-title:500;
+
+  /* semantic type roles */
+  --tui-type-smallprint:  var(--tui-typography-size-01);  --tui-lh-smallprint:var(--tui-space-3x);
+  --tui-type-label:       var(--tui-typography-size-03);  --tui-lh-label:     var(--tui-space-4x);
+  --tui-type-regular:     var(--tui-typography-size-04);  --tui-lh-regular:   var(--tui-space-5x);
+  --tui-type-paragraph:   var(--tui-typography-size-05);  --tui-lh-paragraph: var(--tui-space-6x);
+  --tui-type-title-xs:    var(--tui-typography-size-01);  --tui-lh-title-xs:  var(--tui-space-3x);
+  --tui-type-title-sm:    var(--tui-typography-size-03);  --tui-lh-title-sm:  var(--tui-space-4x);
+  --tui-type-title-md:    var(--tui-typography-size-05);  --tui-lh-title-md:  var(--tui-space-6x);
+  --tui-type-title-lg:    var(--tui-typography-size-08);  --tui-lh-title-lg:  var(--tui-space-7x);
+  --tui-type-title-xl:    var(--tui-typography-size-10);  --tui-lh-title-xl:  var(--tui-space-9x);
+
+  /* -- shape -- */
+  --tui-shape-radius-base:2px;
+  --tui-shape-radius-button:2px;
+  --tui-shape-radius-input:2px;
+  --tui-shape-radius-tag:2px;
+  --tui-shape-radius-circle:9999px;
+  --tui-shape-size-y-input:32px;
+  --tui-shape-size-y-input-large:40px;
+  --tui-shape-size-y-header:var(--tui-space-10x);
+  --tui-shape-size-y-tag-small:16px;
+  --tui-shape-size-y-tag:20px;
+  --tui-shape-size-y-tag-large:24px;
+  --tui-shape-line-divider:1px;
+
+  /* -- elevation -- */
+  --tui-elevation-0:none;
+  --tui-elevation-1:0 0 2px 0 rgba(0,0,0,.2), 0 1px 3px 0 rgba(0,0,0,.2);
+  --tui-elevation-2:0 0 2px 0 rgba(0,0,0,.2), 0 2px 4px 0 rgba(0,0,0,.16);
+  --tui-elevation-3:0 0 2px 0 rgba(0,0,0,.2), 0 2px 4px 0 rgba(0,0,0,.12), 0 4px 8px 0 rgba(0,0,0,.12);
+  --tui-elevation-4:0 0 2px 0 rgba(0,0,0,.2), 0 4px 8px 0 rgba(0,0,0,.12), 0 8px 16px 0 rgba(0,0,0,.12);
+  --tui-elevation-5:0 0 2px 0 rgba(0,0,0,.2), 0 4px 8px 0 rgba(0,0,0,.1), 0 8px 16px 0 rgba(0,0,0,.1), 0 12px 32px 0 rgba(0,0,0,.1);
+  --tui-elevation-6:0 0 2px 0 rgba(0,0,0,.2), 0 8px 16px 0 rgba(0,0,0,.1), 0 12px 32px 0 rgba(0,0,0,.1), 0 16px 40px 0 rgba(0,0,0,.1);
+  --tui-elevation-8:0 0 2px 0 rgba(0,0,0,.2), 0 16px 40px 0 rgba(0,0,0,.1), 0 20px 48px 0 rgba(0,0,0,.1), 0 24px 56px 0 rgba(0,0,0,.1);
+  --tui-elevation-component:var(--tui-elevation-2);
+  --tui-elevation-navigation:var(--tui-elevation-5);
+  --tui-elevation-temporary:var(--tui-elevation-4);
+  --tui-elevation-modal:var(--tui-elevation-8);
+
+  --tui-motion-fast:120ms cubic-bezier(.4,0,.2,1);
+  --tui-motion-base:200ms cubic-bezier(.4,0,.2,1);
+}
+
+/* ---------------------------------------------------------------------------
+   2. SEMANTIC TOKENS — LIGHT THEME (use these in components)
+   --------------------------------------------------------------------------- */
+:root{
+  /* surface */
+  --tui-color-surface-page:var(--tui-color-grey-100);
+  --tui-color-surface-base:var(--tui-color-white);
+  --tui-color-surface-invert:var(--tui-color-cool-grey-900);
+  --tui-color-surface-transparent:var(--tui-color-white-alpha-00);
+  --tui-color-surface-disabled:var(--tui-color-grey-900-alpha-10);
+  --tui-color-surface-backdrop:var(--tui-color-cool-grey-700-alpha-70);
+  --tui-color-surface-overlay-hover:var(--tui-color-black-alpha-02);
+  --tui-color-surface-neutral:var(--tui-color-cool-grey-100);
+  --tui-color-surface-neutral-hover:var(--tui-color-cool-grey-200);
+  --tui-color-surface-neutral-mild:var(--tui-color-cool-grey-200);
+  --tui-color-surface-neutral-medium:var(--tui-color-cool-grey-400);
+  --tui-color-surface-neutral-strong:var(--tui-color-cool-grey-600);
+  --tui-color-surface-neutral-translucent:var(--tui-color-grey-950-alpha-05);
+  --tui-color-surface-action:var(--tui-color-ocean-100);
+  --tui-color-surface-action-hover:var(--tui-color-ocean-200);
+  --tui-color-surface-action-active:var(--tui-color-ocean-200);
+  --tui-color-surface-action-mild:var(--tui-color-ocean-200);
+  --tui-color-surface-action-strong:var(--tui-color-ocean-600);
+  --tui-color-surface-action-strong-hover:var(--tui-color-ocean-700);
+  --tui-color-surface-action-strong-active:var(--tui-color-ocean-800);
+  --tui-color-surface-info:var(--tui-color-blue-100);
+  --tui-color-surface-info-hover:var(--tui-color-blue-200);
+  --tui-color-surface-info-mild:var(--tui-color-blue-200);
+  --tui-color-surface-info-strong:var(--tui-color-blue-600);
+  --tui-color-surface-positive:var(--tui-color-green-100);
+  --tui-color-surface-positive-hover:var(--tui-color-green-200);
+  --tui-color-surface-positive-mild:var(--tui-color-green-200);
+  --tui-color-surface-positive-strong:var(--tui-color-green-600);
+  --tui-color-surface-caution:var(--tui-color-yellow-100);
+  --tui-color-surface-caution-hover:var(--tui-color-yellow-200);
+  --tui-color-surface-caution-mild:var(--tui-color-yellow-200);
+  --tui-color-surface-caution-strong:var(--tui-color-yellow-300);
+  --tui-color-surface-critical:var(--tui-color-red-100);
+  --tui-color-surface-critical-hover:var(--tui-color-red-200);
+  --tui-color-surface-critical-mild:var(--tui-color-red-200);
+  --tui-color-surface-critical-strong:var(--tui-color-red-600);
+  --tui-color-surface-critical-strong-hover:var(--tui-color-red-700);
+  --tui-color-surface-mark:rgba(246,200,0,.3);
+
+  /* border */
+  --tui-color-border-base:var(--tui-color-cool-grey-200);
+  --tui-color-border-invert:var(--tui-color-cool-grey-950);
+  --tui-color-border-transparent:var(--tui-color-white-alpha-00);
+  --tui-color-border-disabled:var(--tui-color-grey-900-alpha-10);
+  --tui-color-border-neutral:var(--tui-color-cool-grey-200);
+  --tui-color-border-neutral-mild:var(--tui-color-cool-grey-300);
+  --tui-color-border-action:var(--tui-color-ocean-700);
+  --tui-color-border-action-strong:var(--tui-color-ocean-700);
+  --tui-color-border-action-strong-hover:var(--tui-color-ocean-800);
+  --tui-color-border-info:var(--tui-color-blue-700);
+  --tui-color-border-positive:var(--tui-color-green-700);
+  --tui-color-border-caution:var(--tui-color-yellow-700);
+  --tui-color-border-critical:var(--tui-color-red-700);
+  --tui-color-border-critical-strong:var(--tui-color-red-700);
+
+  /* typography */
+  --tui-color-typography-base:var(--tui-color-cool-grey-800);
+  --tui-color-typography-neutral:var(--tui-color-cool-grey-600);
+  --tui-color-typography-placeholder:var(--tui-color-cool-grey-400);
+  --tui-color-typography-invert:var(--tui-color-white);
+  --tui-color-typography-disabled:var(--tui-color-cool-grey-900-alpha-30);
+  --tui-color-typography-action:var(--tui-color-ocean-600);
+  --tui-color-typography-action-hover:var(--tui-color-ocean-700);
+  --tui-color-typography-action-active:var(--tui-color-ocean-700);
+  --tui-color-typography-info:var(--tui-color-blue-600);
+  --tui-color-typography-positive:var(--tui-color-green-600);
+  --tui-color-typography-caution:var(--tui-color-yellow-600);
+  --tui-color-typography-critical:var(--tui-color-red-600);
+
+  /* icon */
+  --tui-color-icon-base:var(--tui-color-cool-grey-800);
+  --tui-color-icon-neutral:var(--tui-color-cool-grey-600);
+  --tui-color-icon-invert:var(--tui-color-white);
+  --tui-color-icon-disabled:var(--tui-color-cool-grey-900-alpha-30);
+  --tui-color-icon-action:var(--tui-color-ocean-600);
+  --tui-color-icon-info:var(--tui-color-blue-600);
+  --tui-color-icon-positive:var(--tui-color-green-600);
+  --tui-color-icon-caution:var(--tui-color-yellow-600);
+  --tui-color-icon-critical:var(--tui-color-red-600);
+}
+
+/* ---------------------------------------------------------------------------
+   3. SEMANTIC TOKENS — DARK THEME
+   --------------------------------------------------------------------------- */
+:root[data-theme="dark"]{
+  --tui-color-surface-page:var(--tui-color-cool-grey-950);
+  --tui-color-surface-base:var(--tui-color-cool-grey-900);
+  --tui-color-surface-invert:var(--tui-color-cool-grey-100);
+  --tui-color-surface-disabled:var(--tui-color-grey-100-alpha-10);
+  --tui-color-surface-overlay-hover:var(--tui-color-white-alpha-05);
+  --tui-color-surface-neutral:var(--tui-color-cool-grey-800);
+  --tui-color-surface-neutral-hover:var(--tui-color-cool-grey-700);
+  --tui-color-surface-neutral-mild:var(--tui-color-cool-grey-700);
+  --tui-color-surface-neutral-medium:var(--tui-color-cool-grey-500);
+  --tui-color-surface-neutral-strong:var(--tui-color-cool-grey-600);
+  --tui-color-surface-neutral-translucent:var(--tui-color-grey-100-alpha-10);
+  --tui-color-surface-action:var(--tui-color-ocean-800);
+  --tui-color-surface-action-hover:var(--tui-color-ocean-700);
+  --tui-color-surface-action-active:var(--tui-color-ocean-700);
+  --tui-color-surface-action-mild:var(--tui-color-ocean-700);
+  --tui-color-surface-action-strong:var(--tui-color-ocean-300);
+  --tui-color-surface-action-strong-hover:var(--tui-color-ocean-200);
+  --tui-color-surface-action-strong-active:var(--tui-color-ocean-200);
+  --tui-color-surface-info:var(--tui-color-blue-800);
+  --tui-color-surface-info-hover:var(--tui-color-blue-700);
+  --tui-color-surface-info-mild:var(--tui-color-blue-700);
+  --tui-color-surface-info-strong:var(--tui-color-blue-300);
+  --tui-color-surface-positive:var(--tui-color-green-800);
+  --tui-color-surface-positive-hover:var(--tui-color-green-700);
+  --tui-color-surface-positive-mild:var(--tui-color-green-700);
+  --tui-color-surface-positive-strong:var(--tui-color-green-300);
+  --tui-color-surface-caution:var(--tui-color-yellow-800);
+  --tui-color-surface-caution-hover:var(--tui-color-yellow-700);
+  --tui-color-surface-caution-mild:var(--tui-color-yellow-700);
+  --tui-color-surface-caution-strong:var(--tui-color-yellow-300);
+  --tui-color-surface-critical:var(--tui-color-red-800);
+  --tui-color-surface-critical-hover:var(--tui-color-red-700);
+  --tui-color-surface-critical-mild:var(--tui-color-red-700);
+  --tui-color-surface-critical-strong:var(--tui-color-red-300);
+  --tui-color-surface-critical-strong-hover:var(--tui-color-red-400);
+
+  --tui-color-border-base:var(--tui-color-cool-grey-800);
+  --tui-color-border-invert:var(--tui-color-white);
+  --tui-color-border-disabled:var(--tui-color-grey-100-alpha-10);
+  --tui-color-border-neutral:var(--tui-color-cool-grey-700);
+  --tui-color-border-neutral-mild:var(--tui-color-cool-grey-600);
+  --tui-color-border-action:var(--tui-color-ocean-200);
+  --tui-color-border-action-strong:var(--tui-color-ocean-200);
+  --tui-color-border-action-strong-hover:var(--tui-color-ocean-100);
+  --tui-color-border-info:var(--tui-color-blue-200);
+  --tui-color-border-positive:var(--tui-color-green-200);
+  --tui-color-border-caution:var(--tui-color-yellow-200);
+  --tui-color-border-critical:var(--tui-color-red-200);
+  --tui-color-border-critical-strong:var(--tui-color-red-200);
+
+  --tui-color-typography-base:var(--tui-color-cool-grey-100);
+  --tui-color-typography-neutral:var(--tui-color-cool-grey-300);
+  --tui-color-typography-placeholder:var(--tui-color-cool-grey-400);
+  --tui-color-typography-invert:var(--tui-color-cool-grey-900);
+  --tui-color-typography-disabled:var(--tui-color-cool-grey-100-alpha-30);
+  --tui-color-typography-action:var(--tui-color-ocean-300);
+  --tui-color-typography-action-hover:var(--tui-color-ocean-200);
+  --tui-color-typography-action-active:var(--tui-color-ocean-200);
+  --tui-color-typography-info:var(--tui-color-blue-300);
+  --tui-color-typography-positive:var(--tui-color-green-300);
+  --tui-color-typography-caution:var(--tui-color-yellow-300);
+  --tui-color-typography-critical:var(--tui-color-red-300);
+
+  --tui-color-icon-base:var(--tui-color-cool-grey-100);
+  --tui-color-icon-neutral:var(--tui-color-cool-grey-300);
+  --tui-color-icon-invert:var(--tui-color-cool-grey-900);
+  --tui-color-icon-disabled:var(--tui-color-cool-grey-100-alpha-30);
+  --tui-color-icon-action:var(--tui-color-ocean-300);
+  --tui-color-icon-info:var(--tui-color-blue-300);
+  --tui-color-icon-positive:var(--tui-color-green-300);
+  --tui-color-icon-caution:var(--tui-color-yellow-300);
+  --tui-color-icon-critical:var(--tui-color-red-300);
+}
+
+/* ---------------------------------------------------------------------------
+   4. BASE / RESET
+   --------------------------------------------------------------------------- */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--tui-color-surface-page);
+  color:var(--tui-color-typography-base);
+  font-family:var(--tui-typography-family-system);
+  font-size:var(--tui-type-regular);
+  line-height:var(--tui-lh-regular);
+  font-weight:var(--tui-typography-weight-regular);
+  -webkit-font-smoothing:antialiased;
+}
+img{max-width:100%}
+:focus-visible{outline:2px solid var(--tui-color-border-action-strong);outline-offset:1px}
+
+/* typography helpers */
+.tui-title-xl{font-size:var(--tui-type-title-xl);line-height:var(--tui-lh-title-xl);font-weight:var(--tui-typography-weight-title);font-family:var(--tui-typography-family-title);margin:0}
+.tui-title-lg{font-size:var(--tui-type-title-lg);line-height:var(--tui-lh-title-lg);font-weight:var(--tui-typography-weight-title);font-family:var(--tui-typography-family-title);margin:0}
+.tui-title-md{font-size:var(--tui-type-title-md);line-height:var(--tui-lh-title-md);font-weight:var(--tui-typography-weight-strong);margin:0}
+.tui-title-sm{font-size:var(--tui-type-title-sm);line-height:var(--tui-lh-title-sm);font-weight:var(--tui-typography-weight-strong);margin:0}
+.tui-title-xs{font-size:var(--tui-type-title-xs);line-height:var(--tui-lh-title-xs);font-weight:var(--tui-typography-weight-strong);text-transform:uppercase;letter-spacing:.04em;margin:0}
+.tui-paragraph{font-size:var(--tui-type-paragraph);line-height:var(--tui-lh-paragraph);margin:0}
+.tui-regular{font-size:var(--tui-type-regular);line-height:var(--tui-lh-regular);margin:0}
+.tui-label{font-size:var(--tui-type-label);line-height:var(--tui-lh-label);margin:0}
+.tui-smallprint{font-size:var(--tui-type-smallprint);line-height:var(--tui-lh-smallprint);margin:0}
+.tui-text-neutral{color:var(--tui-color-typography-neutral)}
+.tui-text-action{color:var(--tui-color-typography-action)}
+.tui-text-info{color:var(--tui-color-typography-info)}
+.tui-text-positive{color:var(--tui-color-typography-positive)}
+.tui-text-caution{color:var(--tui-color-typography-caution)}
+.tui-text-critical{color:var(--tui-color-typography-critical)}
+.tui-mono{font-family:var(--tui-typography-family-mono);font-size:var(--tui-type-label)}
+.tui-tnum{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+
+/* link */
+.tui-link{color:var(--tui-color-typography-action);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.tui-link:hover{color:var(--tui-color-typography-action-hover)}
+.tui-link--standalone{text-decoration:none;display:inline-flex;align-items:center;gap:var(--tui-space-1x)}
+.tui-link--standalone:hover{text-decoration:underline}
+
+/* icon */
+.tui-icon{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;
+  stroke-linecap:round;stroke-linejoin:round;display:inline-block;vertical-align:-3px}
+.tui-icon--lg{width:20px;height:20px}
+.tui-icon--xl{width:24px;height:24px}
+.tui-icon--tone-neutral{color:var(--tui-color-icon-neutral)}
+.tui-icon--tone-action{color:var(--tui-color-icon-action)}
+.tui-icon--tone-info{color:var(--tui-color-icon-info)}
+.tui-icon--tone-positive{color:var(--tui-color-icon-positive)}
+.tui-icon--tone-caution{color:var(--tui-color-icon-caution)}
+.tui-icon--tone-critical{color:var(--tui-color-icon-critical)}
+
+/* utility layout */
+.tui-stack{display:flex;flex-direction:column}
+.tui-row{display:flex;align-items:center}
+.tui-wrap{flex-wrap:wrap}
+.tui-gap-1{gap:var(--tui-space-1x)} .tui-gap-2{gap:var(--tui-space-2x)}
+.tui-gap-3{gap:var(--tui-space-3x)} .tui-gap-4{gap:var(--tui-space-4x)}
+.tui-gap-6{gap:var(--tui-space-6x)} .tui-gap-8{gap:var(--tui-space-8x)}
+.tui-grow{flex:1 1 auto;min-width:0}
+
+/* =============================================================================
+   5. COMPONENTS
+   ============================================================================= */
+
+/* --- 5.1 Button --------------------------------------------------------- */
+.tui-button{
+  display:inline-flex;align-items:center;justify-content:center;gap:var(--tui-space-1x);
+  height:var(--tui-shape-size-y-input);padding:0 var(--tui-space-3x);
+  border:1px solid var(--tui-color-border-transparent);
+  border-radius:var(--tui-shape-radius-button);
+  font-family:inherit;font-size:var(--tui-type-label);line-height:var(--tui-lh-label);
+  font-weight:var(--tui-typography-weight-strong);
+  white-space:nowrap;cursor:pointer;text-decoration:none;
+  background:var(--tui-color-surface-transparent);color:var(--tui-color-typography-base);
+  transition:background var(--tui-motion-fast),border-color var(--tui-motion-fast),color var(--tui-motion-fast);
+}
+.tui-button--sm{height:24px;padding:0 var(--tui-space-2x)}
+.tui-button--lg{height:var(--tui-shape-size-y-input-large);padding:0 var(--tui-space-3x);font-size:var(--tui-type-regular);line-height:var(--tui-lh-regular)}
+.tui-button--icon-only{padding:0;width:var(--tui-shape-size-y-input)}
+.tui-button--icon-only.tui-button--sm{width:24px}
+.tui-button--icon-only.tui-button--lg{width:var(--tui-shape-size-y-input-large)}
+
+.tui-button--primary{background:var(--tui-color-surface-action-strong);color:var(--tui-color-typography-invert)}
+.tui-button--primary:hover{background:var(--tui-color-surface-action-strong-hover)}
+.tui-button--primary:active{background:var(--tui-color-surface-action-strong-active)}
+
+.tui-button--outline{border-color:var(--tui-color-border-neutral-mild);color:var(--tui-color-typography-action)}
+.tui-button--outline:hover{border-color:var(--tui-color-border-action-strong-hover);background:var(--tui-color-surface-action)}
+.tui-button--outline:active{background:var(--tui-color-surface-action-active)}
+
+.tui-button--ghost{color:var(--tui-color-typography-action);padding:0 var(--tui-space-2x)}
+.tui-button--ghost:hover{background:var(--tui-color-surface-action)}
+.tui-button--ghost:active{background:var(--tui-color-surface-action-active)}
+
+.tui-button--destructive.tui-button--primary{background:var(--tui-color-surface-critical-strong)}
+.tui-button--destructive.tui-button--primary:hover{background:var(--tui-color-surface-critical-strong-hover)}
+.tui-button--destructive.tui-button--outline{color:var(--tui-color-typography-critical)}
+.tui-button--destructive.tui-button--outline:hover{border-color:var(--tui-color-border-critical-strong);background:var(--tui-color-surface-critical)}
+.tui-button--destructive.tui-button--ghost{color:var(--tui-color-typography-critical)}
+.tui-button--destructive.tui-button--ghost:hover{background:var(--tui-color-surface-critical)}
+
+.tui-button:disabled,.tui-button[aria-disabled="true"]{
+  cursor:not-allowed;background:var(--tui-color-surface-disabled);
+  color:var(--tui-color-typography-disabled);border-color:var(--tui-color-border-disabled);
+}
+.tui-button--ghost:disabled{background:var(--tui-color-surface-transparent)}
+.tui-button--loading{pointer-events:none;position:relative;color:transparent!important}
+.tui-button--loading::after{
+  content:"";position:absolute;width:14px;height:14px;border-radius:50%;
+  border:2px solid currentColor;border-top-color:transparent;
+  color:var(--tui-color-typography-invert);animation:tui-spin .7s linear infinite;
+}
+.tui-button--outline.tui-button--loading::after,.tui-button--ghost.tui-button--loading::after{color:var(--tui-color-typography-action)}
+@keyframes tui-spin{to{transform:rotate(360deg)}}
+
+/* --- 5.2 Toggle button + Segmented control ------------------------------ */
+.tui-toggle-button{border-color:var(--tui-color-border-transparent);color:var(--tui-color-typography-action)}
+.tui-toggle-button:hover{border-color:var(--tui-color-border-neutral);background:var(--tui-color-surface-neutral)}
+.tui-toggle-button[aria-pressed="true"]{background:var(--tui-color-surface-action);border-color:var(--tui-color-border-action)}
+
+.tui-segmented{display:inline-flex;background:var(--tui-color-surface-neutral);border-radius:var(--tui-shape-radius-base);padding:2px;gap:2px}
+.tui-segmented__item{
+  height:28px;padding:0 var(--tui-space-3x);border:1px solid transparent;border-radius:var(--tui-shape-radius-base);
+  background:transparent;font:inherit;font-size:var(--tui-type-label);font-weight:var(--tui-typography-weight-strong);
+  color:var(--tui-color-typography-base);cursor:pointer;display:inline-flex;align-items:center;gap:var(--tui-space-1x);
+}
+.tui-segmented__item:hover{color:var(--tui-color-typography-action-hover)}
+.tui-segmented__item[aria-checked="true"]{background:var(--tui-color-surface-base);border-color:var(--tui-color-border-action);color:var(--tui-color-typography-action-active)}
+
+/* --- 5.3 Switch --------------------------------------------------------- */
+.tui-switch{display:inline-flex;align-items:center;gap:var(--tui-space-2x);cursor:pointer;font-size:var(--tui-type-regular)}
+.tui-switch input{position:absolute;opacity:0;width:0;height:0}
+.tui-switch__track{
+  width:32px;height:16px;border-radius:var(--tui-shape-radius-circle);
+  background:var(--tui-color-surface-neutral-medium);position:relative;transition:background var(--tui-motion-fast);flex:none;
+}
+.tui-switch__track::after{
+  content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;
+  background:var(--tui-color-surface-base);box-shadow:var(--tui-elevation-1);transition:transform var(--tui-motion-fast);
+}
+.tui-switch input:checked + .tui-switch__track{background:var(--tui-color-surface-action-strong)}
+.tui-switch input:checked + .tui-switch__track::after{transform:translateX(16px)}
+.tui-switch input:disabled + .tui-switch__track{background:var(--tui-color-surface-disabled)}
+.tui-switch input:focus-visible + .tui-switch__track{outline:2px solid var(--tui-color-border-action-strong);outline-offset:2px}
+
+/* --- 5.4 Form field / Input --------------------------------------------- */
+.tui-formfield{display:flex;flex-direction:column;gap:var(--tui-space-1x);min-width:0}
+.tui-formfield__label{
+  font-size:var(--tui-type-label);line-height:var(--tui-lh-label);
+  color:var(--tui-color-typography-neutral);display:flex;align-items:center;gap:var(--tui-space-1x);
+}
+.tui-formfield__required{color:var(--tui-color-typography-critical)}
+.tui-formfield__optional{color:var(--tui-color-typography-neutral);font-style:italic}
+.tui-formfield__hint{font-size:var(--tui-type-label);line-height:var(--tui-lh-label);color:var(--tui-color-typography-neutral)}
+.tui-formfield__error{font-size:var(--tui-type-label);line-height:var(--tui-lh-label);color:var(--tui-color-typography-critical);display:flex;align-items:center;gap:var(--tui-space-1x)}
+
+.tui-input,.tui-select,.tui-textarea{
+  width:100%;height:var(--tui-shape-size-y-input);
+  padding:0 var(--tui-space-2x);
+  background:var(--tui-color-surface-base);
+  color:var(--tui-color-typography-base);
+  border:1px solid var(--tui-color-border-neutral-mild);
+  border-radius:var(--tui-shape-radius-input);
+  font-family:inherit;font-size:var(--tui-type-regular);line-height:var(--tui-lh-regular);
+  transition:border-color var(--tui-motion-fast);
+}
+.tui-textarea{height:auto;min-height:72px;padding:var(--tui-space-2x);resize:vertical}
+.tui-input::placeholder,.tui-textarea::placeholder{color:var(--tui-color-typography-placeholder);font-style:italic}
+.tui-input:hover,.tui-select:hover,.tui-textarea:hover{border-color:var(--tui-color-border-action-strong)}
+.tui-input:focus,.tui-select:focus,.tui-textarea:focus{outline:none;border-color:var(--tui-color-border-action-strong);box-shadow:inset 0 0 0 1px var(--tui-color-border-action-strong)}
+.tui-input:disabled,.tui-select:disabled,.tui-textarea:disabled{background:var(--tui-color-surface-disabled);color:var(--tui-color-typography-disabled);border-color:var(--tui-color-border-disabled);cursor:not-allowed}
+.tui-input[readonly]{background:var(--tui-color-surface-neutral);border-color:var(--tui-color-border-transparent)}
+.tui-input--error,.tui-select--error,.tui-textarea--error{border-color:var(--tui-color-border-critical-strong);box-shadow:inset 0 0 0 1px var(--tui-color-border-critical-strong)}
+.tui-input--lg{height:var(--tui-shape-size-y-input-large)}
+.tui-select{appearance:none;padding-right:var(--tui-space-8x);cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);
+  background-position:calc(100% - 15px) 14px,calc(100% - 10px) 14px;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+
+.tui-input-group{position:relative;display:flex;align-items:center}
+.tui-input-group .tui-input{padding-left:var(--tui-space-8x)}
+.tui-input-group__icon{position:absolute;left:var(--tui-space-2x);pointer-events:none;color:var(--tui-color-icon-neutral);display:flex}
+.tui-input-group--trailing .tui-input{padding-left:var(--tui-space-2x);padding-right:var(--tui-space-8x)}
+.tui-input-group--trailing .tui-input-group__icon{left:auto;right:var(--tui-space-2x)}
+
+/* checkbox & radio */
+.tui-choice{display:inline-flex;align-items:flex-start;gap:var(--tui-space-2x);cursor:pointer;font-size:var(--tui-type-regular);line-height:var(--tui-lh-regular)}
+.tui-choice input{
+  appearance:none;margin:2px 0 0;width:16px;height:16px;flex:none;
+  border:1px solid var(--tui-color-border-neutral-mild);background:var(--tui-color-surface-base);
+  border-radius:var(--tui-shape-radius-input);cursor:pointer;position:relative;
+}
+.tui-choice input[type="radio"]{border-radius:50%}
+.tui-choice input:hover{border-color:var(--tui-color-border-action-strong)}
+.tui-choice input:checked{background:var(--tui-color-surface-action-strong);border-color:var(--tui-color-surface-action-strong)}
+.tui-choice input[type="checkbox"]:checked::after{
+  content:"";position:absolute;left:4px;top:1px;width:5px;height:9px;
+  border:solid var(--tui-color-icon-invert);border-width:0 2px 2px 0;transform:rotate(45deg);
+}
+.tui-choice input[type="radio"]:checked::after{
+  content:"";position:absolute;inset:3px;border-radius:50%;background:var(--tui-color-icon-invert);
+}
+.tui-choice input:disabled{background:var(--tui-color-surface-disabled);border-color:var(--tui-color-border-disabled);cursor:not-allowed}
+.tui-choice input:focus-visible{outline:2px solid var(--tui-color-border-action-strong);outline-offset:2px}
+.tui-choice--block{border:1px solid var(--tui-color-border-neutral-mild);border-radius:var(--tui-shape-radius-input);padding:var(--tui-space-2x);width:100%}
+.tui-choice--block:hover{border-color:var(--tui-color-border-action-strong)}
+.tui-choice--block:has(input:checked){border-color:var(--tui-color-border-action);background:var(--tui-color-surface-action)}
+
+/* --- 5.5 Tag & Badge ---------------------------------------------------- */
+.tui-tag{
+  display:inline-flex;align-items:center;gap:var(--tui-space-1x);
+  height:var(--tui-shape-size-y-tag);padding:0 var(--tui-space-1x);
+  border-radius:var(--tui-shape-radius-tag);background:var(--tui-color-surface-neutral);
+  color:var(--tui-color-typography-base);
+  font-size:var(--tui-type-label);line-height:var(--tui-lh-label);white-space:nowrap;
+}
+.tui-tag--sm{height:var(--tui-shape-size-y-tag-small);font-size:var(--tui-type-smallprint)}
+.tui-tag--lg{height:var(--tui-shape-size-y-tag-large);font-size:var(--tui-type-regular);padding:0 var(--tui-space-2x)}
+.tui-tag--info{background:var(--tui-color-surface-info);color:var(--tui-color-typography-info)}
+.tui-tag--positive{background:var(--tui-color-surface-positive);color:var(--tui-color-typography-positive)}
+.tui-tag--caution{background:var(--tui-color-surface-caution);color:var(--tui-color-typography-caution)}
+.tui-tag--critical{background:var(--tui-color-surface-critical);color:var(--tui-color-typography-critical)}
+.tui-tag--action{background:var(--tui-color-surface-action);color:var(--tui-color-typography-action)}
+.tui-tag__remove{border:0;background:none;padding:0;cursor:pointer;color:inherit;display:flex}
+
+.tui-badge{
+  display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 var(--tui-space-1x);
+  border-radius:var(--tui-space-4x);background:var(--tui-color-surface-critical-strong);
+  color:var(--tui-color-typography-invert);font-size:var(--tui-type-smallprint);font-weight:var(--tui-typography-weight-strong);
+}
+.tui-badge--dot{min-width:8px;width:8px;height:8px;padding:0;border-radius:50%}
+.tui-badge--neutral{background:var(--tui-color-surface-neutral-strong)}
+.tui-badge--positive{background:var(--tui-color-surface-positive-strong)}
+.tui-badge--action{background:var(--tui-color-surface-action-strong)}
+
+/* --- 5.6 Box (card) ----------------------------------------------------- */
+.tui-box{
+  background:var(--tui-color-surface-base);
+  border:1px solid var(--tui-color-border-transparent);
+  border-radius:var(--tui-shape-radius-base);
+  box-shadow:var(--tui-elevation-component);
+  position:relative;overflow:hidden;
+}
+.tui-box--ghost{box-shadow:none;border-color:var(--tui-color-border-neutral)}
+.tui-box__accent{position:absolute;inset:0 auto 0 0;width:4px;background:var(--tui-color-surface-neutral-strong)}
+.tui-box--primary .tui-box__accent{background:var(--tui-color-surface-action-strong)}
+.tui-box--info .tui-box__accent{background:var(--tui-color-surface-info-strong)}
+.tui-box--positive .tui-box__accent{background:var(--tui-color-surface-positive-strong)}
+.tui-box--caution .tui-box__accent{background:var(--tui-color-surface-caution-strong)}
+.tui-box--critical .tui-box__accent{background:var(--tui-color-surface-critical-strong)}
+.tui-box__header{
+  display:flex;align-items:center;gap:var(--tui-space-2x);
+  padding:var(--tui-space-4x);border-bottom:1px solid var(--tui-color-border-base);
+}
+.tui-box__content{padding:var(--tui-space-4x)}
+.tui-box__footer{display:flex;align-items:center;gap:var(--tui-space-2x);justify-content:flex-end;
+  padding:0 var(--tui-space-4x) var(--tui-space-3x);}
+
+/* --- 5.7 Message / Banner / Toast --------------------------------------- */
+.tui-message{
+  display:flex;gap:var(--tui-space-2x);padding:var(--tui-space-4x);
+  border-radius:var(--tui-shape-radius-base);border:1px solid var(--tui-color-border-neutral);
+  background:var(--tui-color-surface-neutral);font-size:var(--tui-type-regular);line-height:var(--tui-lh-regular);
+}
+.tui-message--slim{padding:var(--tui-space-2x)}
+.tui-message__title{font-weight:var(--tui-typography-weight-strong)}
+.tui-message--info{background:var(--tui-color-surface-info);border-color:var(--tui-color-border-info)}
+.tui-message--positive{background:var(--tui-color-surface-positive);border-color:var(--tui-color-border-positive)}
+.tui-message--caution{background:var(--tui-color-surface-caution);border-color:var(--tui-color-border-caution)}
+.tui-message--critical{background:var(--tui-color-surface-critical);border-color:var(--tui-color-border-critical)}
+
+.tui-banner{
+  display:flex;align-items:center;gap:var(--tui-space-4x);
+  padding:var(--tui-space-3x) var(--tui-space-4x);
+  border-left:4px solid var(--tui-color-surface-info-strong);
+  background:var(--tui-color-surface-info);font-size:var(--tui-type-regular);
+}
+.tui-banner--caution{border-left-color:var(--tui-color-surface-caution-strong);background:var(--tui-color-surface-caution)}
+.tui-banner--critical{border-left-color:var(--tui-color-surface-critical-strong);background:var(--tui-color-surface-critical)}
+
+.tui-toast{
+  display:flex;gap:var(--tui-space-2x);padding:var(--tui-space-3x) var(--tui-space-4x);
+  background:var(--tui-color-surface-base);border-radius:var(--tui-shape-radius-base);
+  box-shadow:var(--tui-elevation-temporary);border-left:4px solid var(--tui-color-surface-positive-strong);
+  min-width:280px;max-width:400px;font-size:var(--tui-type-regular);
+}
+.tui-toast--critical{border-left-color:var(--tui-color-surface-critical-strong)}
+.tui-toast--info{border-left-color:var(--tui-color-surface-info-strong)}
+.tui-toast-region{position:fixed;right:var(--tui-space-6x);bottom:var(--tui-space-6x);z-index:80;
+  display:flex;flex-direction:column;gap:var(--tui-space-2x)}
+
+/* --- 5.8 Tabs ----------------------------------------------------------- */
+.tui-tabs{display:flex;gap:var(--tui-space-2x);border-bottom:1px solid var(--tui-color-border-neutral)}
+.tui-tabs__item{
+  position:relative;background:none;border:0;cursor:pointer;font:inherit;
+  padding:var(--tui-space-2x) var(--tui-space-3x);color:var(--tui-color-typography-base);
+  display:inline-flex;align-items:center;gap:var(--tui-space-1x);
+}
+.tui-tabs__item:hover{color:var(--tui-color-typography-action-hover)}
+.tui-tabs__item[aria-selected="true"]{color:var(--tui-color-typography-action-active);font-weight:var(--tui-typography-weight-strong)}
+.tui-tabs__item[aria-selected="true"]::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
+  border-radius:2px;background:var(--tui-color-surface-action-strong);
+}
+
+/* --- 5.9 Table ---------------------------------------------------------- */
+.tui-table-wrap{overflow-x:auto;border-radius:var(--tui-shape-radius-base)}
+.tui-table{width:100%;border-collapse:collapse;font-size:var(--tui-type-regular);font-variant-numeric:tabular-nums}
+.tui-table th{
+  text-align:left;background:var(--tui-color-surface-neutral);color:var(--tui-color-typography-base);
+  font-size:var(--tui-type-label);font-weight:var(--tui-typography-weight-strong);
+  padding:var(--tui-space-2x);white-space:nowrap;position:sticky;top:0;
+}
+.tui-table th[aria-sort]{cursor:pointer}
+.tui-table th[aria-sort]:hover{background:var(--tui-color-surface-neutral-hover)}
+.tui-table td{padding:var(--tui-space-2x);border-bottom:1px solid var(--tui-color-border-base)}
+.tui-table tbody tr:hover td{background:var(--tui-color-surface-overlay-hover)}
+.tui-table--striped tbody tr:nth-child(even) td{background:var(--tui-color-surface-neutral-translucent)}
+.tui-table__num{text-align:right}
+
+/* --- 5.10 List item / Menu ---------------------------------------------- */
+.tui-list{list-style:none;margin:0;padding:0}
+.tui-list-item{
+  display:flex;align-items:center;gap:var(--tui-space-2x);
+  padding:var(--tui-space-2x);font-size:var(--tui-type-label);line-height:var(--tui-lh-label);
+  border-radius:var(--tui-shape-radius-base);cursor:pointer;color:var(--tui-color-typography-base);
+}
+.tui-list-item:hover{background:var(--tui-color-surface-neutral)}
+.tui-list-item[aria-selected="true"]{background:var(--tui-color-surface-action);color:var(--tui-color-typography-action-active)}
+.tui-menu{background:var(--tui-color-surface-base);box-shadow:var(--tui-elevation-navigation);
+  border-radius:var(--tui-shape-radius-base);padding:var(--tui-space-1x);min-width:200px}
+
+/* --- 5.11 Accordion ----------------------------------------------------- */
+.tui-accordion{border-top:1px solid var(--tui-color-border-neutral)}
+.tui-accordion__item{border-bottom:1px solid var(--tui-color-border-neutral)}
+.tui-accordion__trigger{
+  width:100%;display:flex;align-items:center;gap:var(--tui-space-2x);
+  list-style:none;
+  background:none;border:0;cursor:pointer;font:inherit;text-align:left;
+  padding:var(--tui-space-3x) var(--tui-space-2x);
+  font-size:var(--tui-type-title-md);font-weight:var(--tui-typography-weight-strong);
+  color:var(--tui-color-typography-base);
+}
+.tui-accordion__trigger:hover{background:var(--tui-color-surface-overlay-hover)}
+.tui-accordion__chevron{margin-left:auto;transition:transform var(--tui-motion-fast);color:var(--tui-color-icon-action)}
+.tui-accordion__item[open] .tui-accordion__chevron{transform:rotate(180deg)}
+.tui-accordion__trigger::-webkit-details-marker{display:none}
+.tui-accordion__panel{padding:0 var(--tui-space-2x) var(--tui-space-4x);color:var(--tui-color-typography-neutral)}
+
+/* --- 5.12 Breadcrumb / Stepper ------------------------------------------ */
+.tui-breadcrumb{display:flex;align-items:center;gap:var(--tui-space-1x);font-size:var(--tui-type-label);flex-wrap:wrap}
+.tui-breadcrumb a{color:var(--tui-color-typography-action);text-decoration:none}
+.tui-breadcrumb a:hover{text-decoration:underline}
+.tui-breadcrumb__sep{color:var(--tui-color-icon-neutral)}
+.tui-breadcrumb__current{color:var(--tui-color-typography-neutral)}
+
+.tui-stepper{display:flex;align-items:flex-start;gap:var(--tui-space-2x);flex-wrap:wrap}
+.tui-stepper__item{display:flex;align-items:center;gap:var(--tui-space-2x);font-size:var(--tui-type-label)}
+.tui-stepper__dot{
+  width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--tui-color-surface-neutral-medium);color:var(--tui-color-typography-neutral);
+  font-weight:var(--tui-typography-weight-strong);font-size:var(--tui-type-label);flex:none;
+}
+.tui-stepper__item--done .tui-stepper__dot{background:var(--tui-color-surface-positive-strong);border-color:var(--tui-color-surface-positive-strong);color:var(--tui-color-typography-invert)}
+.tui-stepper__item--current .tui-stepper__dot{background:var(--tui-color-surface-action-strong);border-color:var(--tui-color-surface-action-strong);color:var(--tui-color-typography-invert)}
+.tui-stepper__line{width:32px;height:1px;background:var(--tui-color-border-neutral-mild)}
+
+/* --- 5.13 Progress / Skeleton ------------------------------------------- */
+.tui-progress{height:4px;border-radius:var(--tui-shape-radius-circle);background:var(--tui-color-surface-neutral-mild);overflow:hidden}
+.tui-progress__bar{height:100%;background:var(--tui-color-surface-action-strong);border-radius:inherit;transition:width var(--tui-motion-base)}
+.tui-progress--positive .tui-progress__bar{background:var(--tui-color-surface-positive-strong)}
+.tui-progress--caution .tui-progress__bar{background:var(--tui-color-surface-caution-strong)}
+.tui-progress--critical .tui-progress__bar{background:var(--tui-color-surface-critical-strong)}
+
+.tui-progress-circle{width:40px;height:40px;transform:rotate(-90deg)}
+.tui-progress-circle circle{fill:none;stroke-width:4}
+.tui-progress-circle__track{stroke:var(--tui-color-surface-neutral-mild)}
+.tui-progress-circle__value{stroke:var(--tui-color-surface-action-strong);stroke-linecap:round}
+
+.tui-skeleton{background:var(--tui-color-surface-neutral-mild);border-radius:var(--tui-shape-radius-base);
+  animation:tui-pulse 1.4s ease-in-out infinite}
+.tui-skeleton--text{height:11px;width:100%}
+.tui-skeleton--title{height:13px;width:40%}
+.tui-skeleton--circle{width:32px;height:32px;border-radius:50%;flex:none}
+@keyframes tui-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+
+.tui-loading-area{position:relative;min-height:80px;display:flex;align-items:center;justify-content:center;
+  background:var(--tui-color-surface-neutral-translucent);border-radius:var(--tui-shape-radius-base)}
+.tui-spinner{width:24px;height:24px;border-radius:50%;border:2px solid var(--tui-color-surface-neutral-medium);
+  border-top-color:var(--tui-color-surface-action-strong);animation:tui-spin .7s linear infinite}
+
+/* --- 5.14 Modal / Tooltip / Popover ------------------------------------- */
+.tui-backdrop{position:fixed;inset:0;background:var(--tui-color-surface-backdrop);z-index:90;
+  display:flex;align-items:center;justify-content:center;padding:var(--tui-space-4x)}
+.tui-backdrop[hidden]{display:none}
+.tui-modal{background:var(--tui-color-surface-base);border-radius:var(--tui-shape-radius-base);
+  box-shadow:var(--tui-elevation-modal);width:min(520px,100%);max-height:90vh;overflow:auto}
+
+.tui-tooltip-host{position:relative;display:inline-flex}
+.tui-tooltip{
+  position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:var(--tui-color-surface-invert);color:var(--tui-color-typography-invert);
+  padding:var(--tui-space-1x) var(--tui-space-2x);border-radius:var(--tui-shape-radius-base);
+  font-size:var(--tui-type-label);line-height:var(--tui-lh-label);white-space:nowrap;
+  opacity:0;pointer-events:none;transition:opacity var(--tui-motion-fast);z-index:20;
+}
+.tui-tooltip-host:hover .tui-tooltip,.tui-tooltip-host:focus-within .tui-tooltip{opacity:1}
+
+/* --- 5.15 Empty state / Avatar ------------------------------------------ */
+.tui-empty-state{display:flex;flex-direction:column;align-items:center;text-align:center;
+  gap:var(--tui-space-2x);padding:var(--tui-space-12x) var(--tui-space-4x);color:var(--tui-color-typography-neutral)}
+.tui-avatar{
+  width:24px;height:24px;border-radius:50%;background:var(--tui-color-surface-action-strong);
+  color:var(--tui-color-typography-invert);display:inline-flex;align-items:center;justify-content:center;
+  font-size:var(--tui-type-smallprint);font-weight:var(--tui-typography-weight-strong);flex:none;
+}
+.tui-avatar--lg{width:32px;height:32px;font-size:var(--tui-type-label)}
+
+/* =============================================================================
+   6. APP SHELL
+   ============================================================================= */
+.app{min-height:100vh;display:flex;flex-direction:column}
+
+.app-header{
+  height:var(--tui-shape-size-y-header);flex:none;
+  display:flex;align-items:center;gap:var(--tui-space-2x);
+  padding:0 var(--tui-space-4x);
+  background:var(--tui-color-surface-base);
+  border-bottom:1px solid var(--tui-color-border-base);
+  position:sticky;top:0;z-index:50;
+}
+.app-header__brand{display:flex;align-items:center;gap:var(--tui-space-2x);font-family:var(--tui-typography-family-title);
+  font-size:var(--tui-type-title-md);font-weight:var(--tui-typography-weight-strong);letter-spacing:.01em;white-space:nowrap}
+.brand-d{color:var(--tui-color-typography-action);font-weight:var(--tui-typography-weight-strong)}
+.app-header__word{display:inline-flex;align-items:baseline}
+.app-header__brand b{font-weight:var(--tui-typography-weight-regular);color:var(--tui-color-typography-action)}
+.app-header__mark{width:24px;height:24px;border-radius:var(--tui-shape-radius-base);
+  background:var(--tui-color-surface-action-strong);color:var(--tui-color-typography-invert);
+  display:flex;align-items:center;justify-content:center;font-size:var(--tui-type-label);font-weight:700}
+.app-header__search{flex:0 1 320px;margin-left:var(--tui-space-4x)}
+.app-header__spacer{flex:1 1 auto}
+.app-header__divider{width:1px;height:20px;background:var(--tui-color-border-base);margin:0 var(--tui-space-1x)}
+
+.app-body{flex:1 1 auto;display:flex;min-height:0}
+
+.app-sidebar{
+  width:240px;flex:none;background:var(--tui-color-surface-base);
+  border-right:1px solid var(--tui-color-border-base);
+  padding:var(--tui-space-2x);overflow-y:auto;
+  position:sticky;top:var(--tui-shape-size-y-header);height:calc(100vh - var(--tui-shape-size-y-header));
+}
+.app-sidebar[data-collapsed="true"]{width:48px}
+.app-sidebar[data-collapsed="true"] .nav-item__label,
+.app-sidebar[data-collapsed="true"] .nav-group__title,
+.app-sidebar[data-collapsed="true"] .nav-item .tui-badge{display:none}
+.nav-group{margin-bottom:var(--tui-space-4x)}
+.nav-group__title{
+  padding:var(--tui-space-2x) var(--tui-space-2x) var(--tui-space-1x);
+  font-size:var(--tui-type-title-xs);line-height:var(--tui-lh-title-xs);
+  font-weight:var(--tui-typography-weight-strong);text-transform:uppercase;letter-spacing:.06em;
+  color:var(--tui-color-typography-neutral);
+}
+.nav-item{
+  display:flex;align-items:center;gap:var(--tui-space-2x);
+  padding:var(--tui-space-2x);border-radius:var(--tui-shape-radius-base);
+  color:var(--tui-color-typography-base);text-decoration:none;cursor:pointer;
+  font-size:var(--tui-type-regular);line-height:var(--tui-lh-regular);position:relative;
+}
+.nav-item:hover{background:var(--tui-color-surface-neutral)}
+.nav-item[aria-current="page"]{background:var(--tui-color-surface-action);color:var(--tui-color-typography-action-active);font-weight:var(--tui-typography-weight-strong)}
+.nav-item[aria-current="page"]::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;
+  border-radius:2px;background:var(--tui-color-surface-action-strong)}
+.nav-item--nested{padding-left:var(--tui-space-6x)}
+.nav-item .tui-badge{margin-left:auto}
+
+.app-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+.page-header{
+  background:var(--tui-color-surface-base);border-bottom:1px solid var(--tui-color-border-base);
+  padding:var(--tui-space-4x) var(--tui-space-6x);display:flex;flex-direction:column;gap:var(--tui-space-2x);
+}
+.page-header__row{display:flex;align-items:center;gap:var(--tui-space-3x);flex-wrap:wrap}
+.page-content{padding:var(--tui-space-6x);display:flex;flex-direction:column;gap:var(--tui-space-6x);max-width:1440px;width:100%}
+
+@media (max-width:960px){
+  .app-sidebar{position:fixed;left:0;top:var(--tui-shape-size-y-header);z-index:60;box-shadow:var(--tui-elevation-navigation);transform:translateX(-100%);transition:transform var(--tui-motion-base)}
+  .app-sidebar[data-open="true"]{transform:none}
+  .app-header__search{display:none}
+  .page-content{padding:var(--tui-space-4x)}
+  .page-header{padding:var(--tui-space-3x) var(--tui-space-4x)}
+}
+
+
+/* =============================================================================
+   DEMO — page-specific styles (semantic TUI tokens only)
+   ============================================================================= */
+.app-header__context{font-size:var(--tui-type-label);line-height:var(--tui-lh-label);color:var(--tui-color-typography-neutral);white-space:nowrap}
+.app-header__brand-name{color:var(--tui-color-typography-base)}
+.nav-item[aria-disabled="true"]{color:var(--tui-color-typography-disabled);cursor:not-allowed}
+.nav-item[aria-disabled="true"]:hover{background:none}
+.nav-item .tui-tag{margin-left:auto}
+.nav-item .nav-item__label{flex:1 1 auto}
+
+.page-header__identity{display:flex;flex-direction:column;gap:var(--tui-space-1x);flex:1 1 auto;min-width:0}
+.page-header h1:focus{outline:none}
+.meta-line{display:flex;flex-wrap:wrap;gap:var(--tui-space-2x);font-size:var(--tui-type-label);line-height:var(--tui-lh-label);color:var(--tui-color-typography-neutral)}
+.meta-line strong{color:var(--tui-color-typography-base);font-weight:var(--tui-typography-weight-regular)}
+.lifecycle{list-style:none;margin:0;padding:0;align-items:center}
+.section-nav{display:flex;flex-wrap:wrap;gap:var(--tui-space-1x);margin-left:calc(-1 * var(--tui-space-2x))}
+
+.grid-4{display:grid;gap:var(--tui-space-4x);grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.grid-3{display:grid;gap:var(--tui-space-4x);grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.summary-card{display:flex;flex-direction:column;align-items:flex-start;gap:var(--tui-space-2x);padding:var(--tui-space-3x) var(--tui-space-4x);
+  text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%;text-decoration:none}
+.summary-card:hover{border-color:var(--tui-color-border-action-strong)}
+.summary-card__value{font-size:var(--tui-type-title-lg);line-height:var(--tui-lh-title-lg);font-weight:var(--tui-typography-weight-title)}
+
+.legend{display:flex;flex-wrap:wrap;gap:var(--tui-space-2x) var(--tui-space-4x);align-items:center;font-size:var(--tui-type-label);line-height:var(--tui-lh-label)}
+.legend__item{display:inline-flex;align-items:center;gap:var(--tui-space-1x)}
+
+.workspace{display:grid;gap:var(--tui-space-6x);grid-template-columns:minmax(0,1fr) minmax(280px,340px);align-items:start}
+.workspace__main,.workspace__aside{display:flex;flex-direction:column;gap:var(--tui-space-6x);min-width:0}
+.workspace__aside{position:sticky;top:calc(var(--tui-shape-size-y-header) + var(--tui-space-4x))}
+.section-anchor{scroll-margin-top:calc(var(--tui-shape-size-y-header) + var(--tui-space-4x))}
+
+/* evidence rows: value + evidence status (text + colour + icon, never colour alone) */
+.evidence-table td{vertical-align:middle}
+.evidence-table__label{width:30%}
+.evidence-table__status{width:200px}
+.evidence-table .tui-input{width:100%}
+.evidence-table .field-note{margin-top:var(--tui-space-1x)}
+.evidence-status{position:relative;display:flex;align-items:center}
+.evidence-status__icon{position:absolute;left:var(--tui-space-2x);pointer-events:none}
+.evidence-status .tui-select{width:100%;padding-left:var(--tui-space-8x)}
+.evidence-status--unknown .tui-select{padding-left:var(--tui-space-2x);color:var(--tui-color-typography-neutral)}
+.evidence-status--stated .tui-select{background-color:var(--tui-color-surface-info);border-color:var(--tui-color-border-info);color:var(--tui-color-typography-info)}
+.evidence-status--stated .evidence-status__icon{color:var(--tui-color-icon-info)}
+.evidence-status--assumed .tui-select{background-color:var(--tui-color-surface-caution);border-color:var(--tui-color-border-caution);color:var(--tui-color-typography-caution)}
+.evidence-status--assumed .evidence-status__icon{color:var(--tui-color-icon-caution)}
+.evidence-status--confirmed .tui-select{background-color:var(--tui-color-surface-positive);border-color:var(--tui-color-border-positive);color:var(--tui-color-typography-positive)}
+.evidence-status--confirmed .evidence-status__icon{color:var(--tui-color-icon-positive)}
+
+.value-unknown{color:var(--tui-color-typography-neutral);font-style:italic}
+.dl{display:grid;grid-template-columns:minmax(140px,auto) 1fr;gap:var(--tui-space-2x) var(--tui-space-4x);align-items:center;margin:0}
+.dl dt{font-size:var(--tui-type-label);line-height:var(--tui-lh-label);color:var(--tui-color-typography-neutral)}
+.dl dd{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:var(--tui-space-2x)}
+
+.open-panel__content{display:flex;flex-direction:column;gap:var(--tui-space-4x);max-height:calc(100vh - 220px);overflow:auto}
+.open-group{display:flex;flex-direction:column;gap:var(--tui-space-1x)}
+.open-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--tui-space-1x)}
+.open-item{width:100%;text-align:left;font:inherit;font-size:var(--tui-type-label);line-height:var(--tui-lh-label);
+  color:var(--tui-color-typography-base);background:var(--tui-color-surface-neutral);border:0;
+  border-left:1px solid var(--tui-color-border-neutral);border-radius:var(--tui-shape-radius-base);
+  padding:var(--tui-space-2x);cursor:pointer;display:flex;flex-direction:column;gap:var(--tui-space-05x)}
+.open-item:hover{background:var(--tui-color-surface-neutral-hover)}
+.open-item--assumed{border-left-color:var(--tui-color-border-caution)}
+.open-item--stated{border-left-color:var(--tui-color-border-info)}
+.open-item--question,.open-item--stepdays{border-left-color:var(--tui-color-border-critical)}
+.question-row{display:flex;gap:var(--tui-space-2x);align-items:flex-start}
+.question-row .tui-grow{display:flex;flex-direction:column;gap:var(--tui-space-1x)}
+.question-row--answered .question-text{text-decoration:line-through;color:var(--tui-color-typography-neutral)}
+
+.steps__no{width:48px}
+.steps__days{width:130px}
+.steps__days-input{text-align:right}
+.plain-list{margin:0;padding-left:var(--tui-space-4x)}
+.plain-list li + li{margin-top:var(--tui-space-1x)}
+.log-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.log-list li{display:flex;gap:var(--tui-space-3x);padding:var(--tui-space-2x) 0;border-bottom:1px solid var(--tui-color-border-base)}
+.log-list li:last-child{border-bottom:0}
+.log-list time{min-width:120px;color:var(--tui-color-typography-neutral);font-size:var(--tui-type-label)}
+
+.tui-modal .tui-box__header{border-bottom:1px solid var(--tui-color-border-base)}
+.tui-modal .tui-box__footer{padding-top:var(--tui-space-3x)}
+.tui-toast-region{display:flex;flex-direction:column;gap:var(--tui-space-2x)}
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+
+@media (max-width:1100px){
+  .workspace{grid-template-columns:minmax(0,1fr)}
+  .workspace__aside{position:static}
+}
+@media (max-width:960px){
+  .app-header__context{display:none}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 15V10a6 6 0 10-12 0v5l-2 3h16z"/><path d="M10 21h4"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14a8 8 0 11-9.9-9.9A7 7 0 0020 14z"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path d="M3 8l9-4 9 4v8l-9 4-9-4z"/><path d="M3 8l9 4 9-4M12 12v8"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 9v4M12 16h.01"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L20 8l-4-4L4 16z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V3h10v6M7 19H5a2 2 0 01-2-2v-5h18v5a2 2 0 01-2 2h-2"/><path d="M7 15h10v6H7z"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 5h12l-2 3.5L17 12H5"/></symbol>
+    <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H14a4 4 0 000-8H9"/></symbol>
+    <symbol id="i-login" viewBox="0 0 24 24"><path d="M14 4h5v16h-5"/><path d="M3 12h11M10 8l4 4-4 4"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+    <symbol id="i-forklift" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="14" cy="18" r="2.5"/><path d="M3 18V6h8v12M11 12h4M19 4v14h2"/></symbol>
+    <symbol id="i-clipboard" viewBox="0 0 24 24"><path d="M9 4h6v3H9z"/><path d="M9 5H6v15h12V5h-3"/><path d="M9 11h6M9 15h4"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 24 24"><path d="M9 11V5a1.5 1.5 0 013 0v6"/><path d="M12 11V4a1.5 1.5 0 013 0v7"/><path d="M15 11V6a1.5 1.5 0 013 0v8a7 7 0 01-7 7 7 7 0 01-7-7v-3a1.5 1.5 0 013 0"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><path d="M3 4h18v16H3z"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <header class="app-header">
+    <button type="button" class="tui-button tui-button--ghost tui-button--icon-only" id="btnNav" aria-label="แสดง/ซ่อนเมนู" aria-controls="sidebar">
+      <svg class="tui-icon" aria-hidden="true"><use href="#i-menu"/></svg>
+    </button>
+    <span class="app-header__brand">
+      <span class="app-header__mark" aria-hidden="true">K</span>
+      <span class="app-header__brand-name">Kaset Connect</span>
+    </span>
+    <span class="app-header__divider" aria-hidden="true"></span>
+    <span class="app-header__context">Kaset Connect Demo — Project Workspace</span>
+    <span class="tui-tag tui-tag--sm" title="ต้นแบบสำหรับตรวจสอบความเข้าใจ workflow ยังไม่ใช่ระบบจริง">ต้นแบบเพื่อทดสอบ workflow</span>
+    <span class="app-header__spacer"></span>
+    <button type="button" class="tui-button tui-button--ghost tui-button--sm" id="btnReset">รีเซ็ตตัวอย่าง</button>
+    <button type="button" class="tui-button tui-button--ghost tui-button--icon-only" id="btnTheme" aria-label="เปลี่ยนเป็นธีมมืด">
+      <svg class="tui-icon" aria-hidden="true"><use href="#i-moon" id="iconTheme"/></svg>
+    </button>
+  </header>
+
+  <div class="app-body">
+    <nav class="app-sidebar" id="sidebar" aria-label="เมนูหลัก">
+      <div class="nav-group">
+        <div class="nav-group__title">โครงการ</div>
+        <a class="nav-item" href="#/overview" data-route="overview"><svg class="tui-icon" aria-hidden="true"><use href="#i-home"/></svg><span class="nav-item__label">ภาพรวมโครงการ</span></a>
+        <a class="nav-item" href="#/initiation" data-route="initiation"><svg class="tui-icon" aria-hidden="true"><use href="#i-edit"/></svg><span class="nav-item__label">ริเริ่มโครงการ</span></a>
+        <a class="nav-item" href="#/decision" data-route="decision"><svg class="tui-icon" aria-hidden="true"><use href="#i-flag"/></svg><span class="nav-item__label">สรุปเพื่อตัดสินใจ</span></a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group__title">การดำเนินงาน</div>
+        <a class="nav-item" aria-disabled="true" tabindex="-1" title="ไม่อยู่ในขอบเขตของเดโมนี้"><svg class="tui-icon" aria-hidden="true"><use href="#i-layers"/></svg><span class="nav-item__label">แผนการผลิต</span><span class="tui-tag tui-tag--sm">ไม่อยู่ในเดโม</span></a>
+        <a class="nav-item" href="#/operations" data-route="operations"><svg class="tui-icon" aria-hidden="true"><use href="#i-list"/></svg><span class="nav-item__label">งานและกิจกรรม</span></a>
+        <a class="nav-item" href="#/operations/progress" data-route="operations-progress"><svg class="tui-icon" aria-hidden="true"><use href="#i-chart"/></svg><span class="nav-item__label">ความคืบหน้า</span></a>
+      </div>
+    </nav>
+
+    <main class="app-main" id="main">
+      <div class="page-header" id="pageHeader"></div>
+      <section class="page-content" id="pageContent"></section>
+    </main>
+  </div>
+</div>
+
+<div class="tui-backdrop" id="modalLayer" hidden></div>
+<div class="tui-toast-region" id="toastRegion" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ===========================================================================
+     Evidence vocabulary (same four statuses as the Kaset Connect demo)
+     =========================================================================== */
+  var STATUS = {
+    unknown:   {label: 'ยังไม่ทราบ',     hint: 'ยังไม่มีข้อมูล',                    tag: '',                   icon: null},
+    stated:    {label: 'มีผู้ให้ข้อมูล',  hint: 'มีคนบอก แต่ยังไม่ได้ตรวจยืนยัน',   tag: 'tui-tag--info',      icon: 'i-info'},
+    assumed:   {label: 'สมมติฐาน',       hint: 'ทีมคาดการณ์เอง ต้องพิสูจน์',        tag: 'tui-tag--caution',   icon: 'i-alert'},
+    confirmed: {label: 'ยืนยันแล้ว',     hint: 'ตรวจยืนยันแล้ว',                    tag: 'tui-tag--positive',  icon: 'i-check'}
+  };
+  var ORDER = ['confirmed', 'stated', 'assumed', 'unknown'];
+
+  /* ===========================================================================
+     Field structure — a candidate structure to challenge, not a data model
+     =========================================================================== */
+  var SECTIONS = [
+    {id: 'market', title: 'ข้อมูลตลาด', en: 'Market opportunity', fields: [
+      {key: 'product',    label: 'สินค้า',                  en: 'Product',                 q: 'สินค้าที่ตลาดต้องการคืออะไร?'},
+      {key: 'buyer',      label: 'ตลาด / ผู้ซื้อ',           en: 'Market / buyer',          q: 'ผู้ซื้อ / ตลาดปลายทางคือใคร?'},
+      {key: 'demand',     label: 'ความต้องการต่อวัน',        en: 'Demand per day',          q: 'ความต้องการต่อวันที่ผู้ซื้อยืนยันคือเท่าไร?'},
+      {key: 'variety',    label: 'สายพันธุ์',                en: 'Variety',                 q: 'ผู้ซื้อต้องการสายพันธุ์อะไร?'},
+      {key: 'spec',       label: 'สเปกสินค้า',               en: 'Product specification',   q: 'สเปกสินค้าที่ผู้ซื้อต้องการเป็นอย่างไร?'},
+      {key: 'cert',       label: 'มาตรฐาน / ใบรับรอง',       en: 'Standard / certification', q: 'ต้องใช้มาตรฐานหรือใบรับรองอะไร?'},
+      {key: 'price',      label: 'ราคาหน้าสวน',              en: 'Farm-gate price',         q: 'ราคาที่ผู้ซื้อยืนยันคือเท่าไร?'},
+      {key: 'delivery',   label: 'การรับสินค้า / การขนส่ง',   en: 'Pickup / delivery',       q: 'ผู้ซื้อมารับสินค้าเองได้หรือไม่?'},
+      {key: 'credit',     label: 'Credit Term',              en: 'Credit term',             q: 'เครดิตเทอมกี่วัน?'},
+      {key: 'commercial', label: 'สถานะการค้า',              en: 'Commercial status',       q: 'การคุยกับผู้ซื้ออยู่ขั้นไหนแล้ว?'}
+    ]},
+    {id: 'production', title: 'แนวทางการผลิต', en: 'Production scenario', fields: [
+      {key: 'site',    label: 'พื้นที่ / ที่ตั้ง',       en: 'Site',                      q: 'จะผลิตที่ไหน?'},
+      {key: 'method',  label: 'รูปแบบการผลิต',          en: 'Production method',         q: 'จะผลิตแบบกลางแจ้งหรือโรงเรือน?'},
+      {key: 'reason',  label: 'เหตุผล / บริบท',          en: 'Reason / context',          q: 'ทำไมถึงพิจารณาแนวทางนี้?'},
+      {key: 'area',    label: 'พื้นที่ปลูกที่ต้องใช้',    en: 'Required area',             q: 'ต้องใช้พื้นที่เท่าไร?'},
+      {key: 'target',  label: 'เป้าผลผลิต',             en: 'Production target',         q: 'เป้าผลผลิตคือเท่าไร?'},
+      {key: 'harvest', label: 'ช่วงเก็บเกี่ยวที่คาด',     en: 'Expected harvest period',   q: 'จะเริ่มเก็บเกี่ยวได้เมื่อไร?'}
+    ]},
+    {id: 'finance', title: 'การเงิน', en: 'Financial', fields: [
+      {key: 'budget',  label: 'งบประมาณ',                    en: 'Budget',           q: 'งบประมาณรวมของโครงการเท่าไร?'},
+      {key: 'capex',   label: 'เงินลงทุน (CAPEX)',           en: 'CAPEX',            q: 'CAPEX โรงเรือนเท่าไร?'},
+      {key: 'opex',    label: 'ค่าใช้จ่ายดำเนินการ (OPEX)',   en: 'OPEX',             q: 'OPEX ต่อรอบการผลิตเท่าไร?'},
+      {key: 'revenue', label: 'รายได้ที่คาด',                 en: 'Expected revenue', q: 'รายได้ที่คาดคือเท่าไร?'}
+    ]}
+  ];
+
+  /* ===========================================================================
+     Initial scenario — ONLY what came up in the cantaloupe discussion.
+     Everything else is unknown. Nothing starts as confirmed.
+     =========================================================================== */
+  var FROM_DISCUSSION = 'บันทึกจากการสนทนา';
+
+  function initialState() {
+    var values = {};
+    SECTIONS.forEach(function (s) {
+      values[s.id] = {};
+      s.fields.forEach(function (f) { values[s.id][f.key] = {v: '', s: 'unknown', note: ''}; });
+    });
+    values.market.product    = {v: 'แคนตาลูป', s: 'stated', note: FROM_DISCUSSION};
+    values.market.demand     = {v: '3,000 kg/day', s: 'stated', note: FROM_DISCUSSION + ' (~3 ตัน/วัน)'};
+    values.market.commercial = {v: 'กำลังสำรวจความต้องการ', s: 'stated', note: 'ทีมตั้งใจยืนยันตลาดก่อนสรุปแผนการผลิต'};
+    values.production.site   = {v: 'สุราษฎร์ธานี', s: 'stated', note: FROM_DISCUSSION};
+    values.production.method = {v: 'โรงเรือน', s: 'assumed', note: 'แนวทางที่กำลังพิจารณา ไม่ใช่คำแนะนำ'};
+    values.production.reason = {v: 'มีข้อกังวลเรื่องปริมาณฝน จึงกำลังพิจารณาการผลิตในโรงเรือน', s: 'stated', note: FROM_DISCUSSION};
+
+    return {
+      name: 'โครงการแคนตาลูป — สุราษฎร์ธานี',
+      started: false,
+      startedAt: null,
+      values: values,
+      questions: [
+        {id: 'q1', text: 'ผู้ซื้อจะยืนยันความต้องการเมื่อไร? (ทีมตั้งใจยืนยันตลาดก่อนสรุปแผนการผลิต)', source: 'จากการสนทนา', answered: false},
+        {id: 'q2', text: 'ฝนตกชุกกระทบการปลูกกลางแจ้งแค่ไหน — จำเป็นต้องใช้โรงเรือนจริงหรือไม่?', source: 'จากการสนทนา', answered: false},
+        {id: 'q3', text: 'ควรเริ่มโครงการนำร่อง (pilot) ขนาดเท่าไร?', source: 'คำถามของทีม', answered: false}
+      ],
+      // Draft steps derived only from the open questions above — a team draft for the farm operator to correct.
+      steps: [
+        {no: 1, name: 'ยืนยันความต้องการ ราคา และข้อกำหนดกับผู้ซื้อ', owner: '', days: null},
+        {no: 2, name: 'ประเมินการผลิตในโรงเรือน (พื้นที่ / เงินลงทุน)', owner: '', days: null},
+        {no: 3, name: 'ตัดสินใจขนาดโครงการนำร่อง', owner: '', days: null}
+      ],
+      ops: [],
+      log: [],
+      justStarted: false
+    };
+  }
+
+  var STORAGE_KEY = 'kc-demo-state';
+  var state = loadState();
+
+  function loadState() {
+    try {
+      var raw = sessionStorage.getItem(STORAGE_KEY);
+      if (raw) { return JSON.parse(raw); }
+    } catch (e) { /* storage unavailable: start fresh */ }
+    return initialState();
+  }
+  function saveState() {
+    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* in-memory only */ }
+  }
+
+  /* ===========================================================================
+     Derived evidence state
+     =========================================================================== */
+  function eff(field) {
+    if (!field || !field.v || !String(field.v).trim()) { return 'unknown'; }
+    return STATUS[field.s] ? field.s : 'unknown';
+  }
+  function sectionDef(id) { return SECTIONS.filter(function (s) { return s.id === id; })[0]; }
+  function fieldDef(sec, key) { return sectionDef(sec).fields.filter(function (f) { return f.key === key; })[0]; }
+
+  function counts(sectionIds) {
+    var c = {confirmed: 0, stated: 0, assumed: 0, unknown: 0};
+    (sectionIds || SECTIONS.map(function (s) { return s.id; })).forEach(function (sid) {
+      sectionDef(sid).fields.forEach(function (f) { c[eff(state.values[sid][f.key])]++; });
+    });
+    return c;
+  }
+  function openQuestions() { return state.questions.filter(function (q) { return !q.answered && q.text.trim(); }); }
+  function missingDays() { return state.steps.filter(function (s) { return s.days === null || s.days === '' || s.days === undefined; }); }
+
+  // Everything not confirmed stays open (same rule as the demo implementation).
+  function openItems() {
+    var items = [];
+    SECTIONS.forEach(function (s) {
+      s.fields.forEach(function (f) {
+        var st = eff(state.values[s.id][f.key]);
+        if (st !== 'confirmed') { items.push({kind: st, sec: s.id, key: f.key}); }
+      });
+    });
+    openQuestions().forEach(function (q) { items.push({kind: 'question', id: q.id}); });
+    missingDays().forEach(function (st) { items.push({kind: 'stepdays', no: st.no}); });
+    return items;
+  }
+
+  /* ===========================================================================
+     Helpers
+     =========================================================================== */
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function icon(id, cls) { return '<svg class="tui-icon' + (cls ? ' ' + cls : '') + '" aria-hidden="true"><use href="#' + id + '"/></svg>'; }
+  function statusTag(st, small) {
+    var m = STATUS[st];
+    return '<span class="tui-tag' + (small ? ' tui-tag--sm' : '') + (m.tag ? ' ' + m.tag : '') + '">' + (m.icon ? icon(m.icon) : '') + esc(m.label) + '</span>';
+  }
+  function valueText(field) {
+    return eff(field) === 'unknown' && !(field.v && field.v.trim())
+      ? '<span class="value-unknown">ยังไม่ทราบ</span>'
+      : esc(field.v);
+  }
+  function fmtTime(iso) {
+    var d = new Date(iso);
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + (d.getFullYear() + 543) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function stageTag() {
+    return state.started
+      ? '<span class="tui-tag tui-tag--lg tui-tag--positive">' + icon('i-check') + 'กำลังดำเนินงาน</span>'
+      : '<span class="tui-tag tui-tag--lg tui-tag--action">กำลังประเมินโครงการ</span>';
+  }
+  function countTags(c) {
+    return '<div class="tui-row tui-gap-1 tui-wrap">' + ORDER.map(function (st) {
+      var m = STATUS[st];
+      return '<span class="tui-tag tui-tag--sm' + (m.tag ? ' ' + m.tag : '') + '">' + esc(m.label) + ' <span class="tui-tnum">' + c[st] + '</span></span>';
+    }).join('') + '</div>';
+  }
+  function toast(text, tone) {
+    var region = document.getElementById('toastRegion');
+    var el = document.createElement('div');
+    el.className = 'tui-toast' + (tone ? ' tui-toast--' + tone : '');
+    el.setAttribute('role', 'status');
+    el.innerHTML = icon(tone === 'info' ? 'i-info' : 'i-check') + '<span>' + esc(text) + '</span>';
+    region.appendChild(el);
+    setTimeout(function () { if (el.parentNode) { el.parentNode.removeChild(el); } }, 3200);
+  }
+
+  /* ===========================================================================
+     Page header (project identity persists across every screen)
+     =========================================================================== */
+  var CRUMB = {overview: 'ภาพรวมโครงการ', initiation: 'ริเริ่มโครงการ', decision: 'สรุปเพื่อตัดสินใจ', operations: 'งานและกิจกรรม'};
+
+  function renderHeader(route, actionsHtml) {
+    var v = state.values;
+    var lifecycle =
+      '<ol class="tui-stepper lifecycle" aria-label="ช่วงของโครงการ">' +
+        stepItem(1, 'ประเมินโครงการ (ตลาด · การผลิต · การเงิน)', state.started ? 'done' : 'current') +
+        '<li class="tui-stepper__line" aria-hidden="true"></li>' +
+        stepItem(2, 'เริ่มโครงการ', state.started ? 'done' : '') +
+        '<li class="tui-stepper__line" aria-hidden="true"></li>' +
+        stepItem(3, 'การดำเนินงาน', state.started ? 'current' : '') +
+      '</ol>';
+    document.getElementById('pageHeader').innerHTML =
+      '<nav class="tui-breadcrumb" aria-label="breadcrumb">' +
+        '<a href="#/overview">โครงการ</a>' + icon('i-chevron-right', 'tui-breadcrumb__sep') +
+        '<span class="tui-breadcrumb__current">' + esc(CRUMB[route]) + '</span>' +
+      '</nav>' +
+      '<div class="page-header__row">' +
+        '<div class="page-header__identity">' +
+          '<span class="tui-title-xs tui-text-neutral">โครงการเกษตร</span>' +
+          '<h1 class="tui-title-lg" tabindex="-1" id="pageTitle">' + esc(state.name) + '</h1>' +
+          '<div class="meta-line"><span>สินค้า: <strong id="hdrProduct">' + valueText(v.market.product) + '</strong></span>' +
+          '<span aria-hidden="true">·</span><span>พื้นที่: <strong id="hdrSite">' + valueText(v.production.site) + '</strong></span></div>' +
+        '</div>' +
+        stageTag() + (actionsHtml || '') +
+      '</div>' + lifecycle;
+  }
+  function stepItem(n, label, mode) {
+    var cls = mode ? ' tui-stepper__item--' + mode : '';
+    var dot = mode === 'done' ? icon('i-check') : String(n);
+    return '<li class="tui-stepper__item' + cls + '"' + (mode === 'current' ? ' aria-current="step"' : '') + '><span class="tui-stepper__dot">' + dot + '</span><span>' + esc(label) + '</span></li>';
+  }
+
+  /* ===========================================================================
+     Screen: Project overview
+     =========================================================================== */
+  function renderOverview() {
+    var next = state.started ? '#/operations' : '#/initiation';
+    renderHeader('overview', '<a class="tui-button tui-button--primary" href="' + next + '">ดำเนินการต่อ ' + icon('i-chevron-right') + '</a>');
+    var all = counts();
+    var open = openItems();
+    var html =
+      '<div class="tui-message tui-message--info">' + icon('i-info', 'tui-icon--tone-info') +
+        '<div class="tui-stack tui-gap-1"><span class="tui-message__title">ต้นแบบเพื่อทดสอบความเข้าใจ workflow ร่วมกับผู้ประกอบการเกษตร</span>' +
+        '<span>ข้อมูลตัวอย่างมาจากการสนทนาเรื่องแคนตาลูปเท่านั้น ยังไม่มีข้อมูลใดที่ยืนยันแล้ว และ workflow นี้ยังไม่ได้รับการยืนยันจากผู้ประกอบการเกษตร</span></div>' +
+      '</div>' +
+      '<div class="grid-4" aria-label="สถานะข้อมูลของโครงการ">' +
+        ORDER.map(function (st) {
+          var m = STATUS[st];
+          return '<div class="tui-box"><div class="tui-box__content tui-stack tui-gap-2">' +
+            '<span class="tui-row tui-gap-2">' + statusTag(st, true) + '</span>' +
+            '<span class="summary-card__value tui-tnum">' + all[st] + '</span>' +
+            '<span class="tui-label tui-text-neutral">' + esc(m.hint) + '</span></div></div>';
+        }).join('') +
+      '</div>' +
+      '<div class="grid-4">' +
+        SECTIONS.map(function (s) {
+          return '<a class="tui-box summary-card" href="#/initiation/' + s.id + '"><span class="tui-title-sm">' + esc(s.title) + '</span>' + countTags(counts([s.id])) + '</a>';
+        }).join('') +
+        '<a class="tui-box tui-box--caution summary-card" href="#/initiation/open"><span class="tui-box__accent"></span><span class="tui-title-sm">ยังไม่รู้ / ต้องตัดสินใจ</span>' +
+          '<span class="tui-label"><span class="tui-tnum">' + open.length + '</span> รายการ · คำถามค้าง <span class="tui-tnum">' + openQuestions().length + '</span></span></a>' +
+      '</div>' +
+      '<div class="grid-3">' +
+        '<div class="tui-box"><div class="tui-box__header"><h2 class="tui-title-md">ข้อมูลหลักตอนนี้</h2></div><div class="tui-box__content">' +
+          '<dl class="dl">' + dlRow('market', 'product') + dlRow('market', 'demand') + dlRow('market', 'buyer') + dlRow('production', 'site') + dlRow('production', 'method') + '</dl>' +
+        '</div></div>' +
+        '<div class="tui-box tui-box--ghost"><div class="tui-box__header"><h2 class="tui-title-md">คำถามสำหรับคุยกับผู้ประกอบการเกษตร</h2></div><div class="tui-box__content">' + promptsList() + '</div></div>' +
+      '</div>';
+    document.getElementById('pageContent').innerHTML = html;
+  }
+  function dlRow(sec, key) {
+    var f = state.values[sec][key];
+    return '<dt>' + esc(fieldDef(sec, key).label) + '</dt><dd><span>' + valueText(f) + '</span>' + statusTag(eff(f), true) + '</dd>';
+  }
+  function promptsList() {
+    return '<ul class="plain-list tui-regular">' + [
+      'ตรงไหนไม่เหมือนวิธีที่พี่ทำจริง?',
+      'ก่อนเริ่มโครงการจริง พี่ยังต้องรู้อะไรอีก?',
+      'ข้อมูลแต่ละตัว ใครเป็นคนให้?',
+      'ข้อมูลแบบไหนถึงถือว่า “ยืนยันแล้ว”?',
+      'อะไรคือจุดที่พี่ตัดสินใจว่าไปต่อหรือไม่ไปต่อ?'
+    ].map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>';
+  }
+
+  /* ===========================================================================
+     Screen: Project initiation workspace
+     =========================================================================== */
+  function renderInitiation(anchor) {
+    renderHeader('initiation', state.started
+      ? '<a class="tui-button tui-button--primary" href="#/operations">ไปที่การดำเนินงาน ' + icon('i-chevron-right') + '</a>'
+      : '<a class="tui-button tui-button--primary" href="#/decision">สรุปเพื่อตัดสินใจ ' + icon('i-chevron-right') + '</a>');
+    var nav =
+      '<nav class="section-nav" aria-label="ส่วนของหน้า">' +
+        ['market:ข้อมูลตลาด', 'production:แนวทางการผลิต', 'finance:การเงิน', 'steps:ขั้นตอนงาน', 'open:ยังไม่รู้ / ต้องตัดสินใจ'].map(function (x) {
+          var p = x.split(':');
+          return '<button type="button" class="tui-button tui-button--ghost tui-button--sm" data-scroll="sec-' + p[0] + '">' + esc(p[1]) + '</button>';
+        }).join('') +
+      '</nav>';
+    document.getElementById('pageHeader').insertAdjacentHTML('beforeend', nav);
+
+    var legend = '<div class="legend" aria-label="ความหมายของสถานะหลักฐาน"><span class="tui-text-neutral">สถานะหลักฐาน:</span>' +
+      ORDER.map(function (st) { return '<span class="legend__item">' + statusTag(st, true) + '<span class="tui-text-neutral">' + esc(STATUS[st].hint) + '</span></span>'; }).join('') + '</div>';
+
+    var html = legend + '<div class="workspace"><div class="workspace__main">' +
+      evidenceBox('market', '') +
+      evidenceBox('production',
+        '<div class="tui-box__content"><div class="tui-message tui-message--info tui-message--slim">' + icon('i-info', 'tui-icon--tone-info') +
+        '<span>แนวทางการผลิตที่กำลังพิจารณา ไม่ใช่คำแนะนำทางเกษตร — ดูสถานะหลักฐานของแต่ละค่าประกอบ</span></div></div>') +
+      evidenceBox('finance',
+        '<div class="tui-box__content"><div class="tui-message tui-message--slim">' + icon('i-info', 'tui-icon--tone-neutral') +
+        '<span>"ยังไม่ทราบ" คือยังไม่มีข้อมูล — ไม่ใช่ 0 บาท</span></div></div>') +
+      questionsBox() +
+      stepsBox() +
+      '</div><aside class="workspace__aside">' + openPanel() + '</aside></div>';
+    document.getElementById('pageContent').innerHTML = html;
+    if (anchor) { scrollToId('sec-' + anchor); }
+  }
+
+  function evidenceBox(sid, intro) {
+    var s = sectionDef(sid);
+    return '<div class="tui-box section-anchor" id="sec-' + sid + '">' +
+      '<div class="tui-box__header"><h2 class="tui-title-md tui-grow">' + esc(s.title) + ' <span class="tui-label tui-text-neutral">' + esc(s.en) + '</span></h2>' +
+      '<span data-derived="counts-' + sid + '">' + countTags(counts([sid])) + '</span></div>' +
+      intro +
+      '<div class="tui-table-wrap"><table class="tui-table evidence-table"><thead><tr>' +
+        '<th scope="col" class="evidence-table__label">ข้อมูล</th><th scope="col">ค่า</th><th scope="col" class="evidence-table__status">สถานะหลักฐาน</th>' +
+      '</tr></thead><tbody>' +
+      s.fields.map(function (f) { return evidenceRow(sid, f); }).join('') +
+      '</tbody></table></div></div>';
+  }
+
+  function evidenceRow(sid, f) {
+    var val = state.values[sid][f.key];
+    var id = 'f-' + sid + '-' + f.key;
+    return '<tr data-sec="' + sid + '" data-key="' + f.key + '">' +
+      '<td><label class="tui-label" for="' + id + '">' + esc(f.label) + '</label><div class="tui-smallprint tui-text-neutral">' + esc(f.en) + '</div></td>' +
+      '<td><input class="tui-input" id="' + id + '" data-role="value" value="' + esc(val.v) + '" placeholder="ยังไม่ทราบ" autocomplete="off">' +
+        (val.note ? '<div class="tui-smallprint tui-text-neutral field-note">' + esc(val.note) + '</div>' : '') + '</td>' +
+      '<td data-cell="status">' + statusControl(sid, f) + '</td></tr>';
+  }
+
+  function statusControl(sid, f) {
+    var val = state.values[sid][f.key];
+    var st = eff(val);
+    var m = STATUS[st];
+    var empty = !(val.v && val.v.trim());
+    return '<div class="evidence-status evidence-status--' + st + '">' +
+      (m.icon ? icon(m.icon, 'evidence-status__icon') : '') +
+      '<select class="tui-select" data-role="status" aria-label="สถานะหลักฐานของ ' + esc(f.label) + '"' +
+        (empty ? ' disabled title="ใส่ค่าก่อน จึงจะเปลี่ยนสถานะได้"' : ' title="' + esc(m.hint) + '"') + '>' +
+        ORDER.map(function (o) { return '<option value="' + o + '"' + (o === st ? ' selected' : '') + '>' + esc(STATUS[o].label) + '</option>'; }).join('') +
+      '</select></div>';
+  }
+
+  function questionsBox() {
+    return '<div class="tui-box section-anchor" id="sec-questions">' +
+      '<div class="tui-box__header"><h2 class="tui-title-md tui-grow">คำถามที่ยังค้าง</h2><span class="tui-label tui-text-neutral">ไม่ใช่คำแนะนำ — เป็นคำถามของโครงการที่ยังไม่มีคำตอบ</span></div>' +
+      '<div class="tui-box__content tui-stack tui-gap-2">' +
+      state.questions.map(function (q) {
+        return '<div class="question-row' + (q.answered ? ' question-row--answered' : '') + '">' +
+          '<div class="tui-grow"><span class="question-text">' + esc(q.text) + '</span><span class="tui-smallprint tui-text-neutral">' + esc(q.source) + '</span></div>' +
+          '<button type="button" class="tui-button tui-button--ghost tui-button--sm" data-action="toggle-question" data-id="' + q.id + '" aria-pressed="' + q.answered + '">' +
+            (q.answered ? 'เปิดคำถามอีกครั้ง' : 'มีคำตอบแล้ว') + '</button></div>';
+      }).join('') +
+      '</div></div>';
+  }
+
+  function stepsBox() {
+    var locked = state.started;
+    return '<div class="tui-box section-anchor" id="sec-steps">' +
+      '<div class="tui-box__header"><h2 class="tui-title-md tui-grow">ขั้นตอนงาน (ร่าง)</h2>' + statusTag('assumed', true) + '</div>' +
+      '<div class="tui-box__content"><p class="tui-label tui-text-neutral">' +
+        (locked ? 'ส่งเข้าการดำเนินงานแล้ว จึงแก้ไขที่นี่ไม่ได้'
+                : 'ร่างโดยทีมจากคำถามที่ยังค้าง ให้ผู้ประกอบการเกษตรแก้ไข/เพิ่ม — ขั้นตอนเหล่านี้จะกลายเป็นงานในการดำเนินงานเมื่อเริ่มโครงการ') + '</p></div>' +
+      '<div class="tui-table-wrap"><table class="tui-table"><thead><tr>' +
+        '<th scope="col" class="tui-table__num steps__no">#</th><th scope="col">ขั้นตอน</th><th scope="col">ผู้รับผิดชอบ</th><th scope="col" class="tui-table__num steps__days">ระยะเวลา (วัน)</th>' +
+        (locked ? '' : '<th scope="col"><span class="visually-hidden">ลบ</span></th>') +
+      '</tr></thead><tbody>' +
+      state.steps.map(function (s, i) {
+        var dis = locked ? ' disabled' : '';
+        return '<tr data-step="' + i + '">' +
+          '<td class="tui-table__num tui-tnum">' + s.no + '</td>' +
+          '<td><input class="tui-input" data-role="step-name" value="' + esc(s.name) + '" aria-label="ชื่อขั้นตอนที่ ' + s.no + '"' + dis + '></td>' +
+          '<td><input class="tui-input" data-role="step-owner" value="' + esc(s.owner) + '" placeholder="ยังไม่ระบุ" aria-label="ผู้รับผิดชอบขั้นตอนที่ ' + s.no + '"' + dis + '></td>' +
+          '<td><input class="tui-input tui-tnum steps__days-input" type="number" min="0" id="step-days-' + s.no + '" data-role="step-days" value="' + (s.days === null ? '' : esc(s.days)) + '" placeholder="ยังไม่ทราบ" aria-label="ระยะเวลาของขั้นตอนที่ ' + s.no + '"' + dis + '></td>' +
+          (locked ? '' : '<td><button type="button" class="tui-button tui-button--ghost tui-button--icon-only tui-button--destructive" data-action="remove-step" data-index="' + i + '" aria-label="ลบขั้นตอนที่ ' + s.no + '">' + icon('i-trash') + '</button></td>') +
+        '</tr>';
+      }).join('') +
+      '</tbody></table></div>' +
+      (state.steps.length === 0 ? '<div class="tui-empty-state">' + icon('i-list', 'tui-icon--xl tui-icon--tone-neutral') + '<p class="tui-regular">ยังไม่มีขั้นตอนงาน</p><p class="tui-label">เพิ่มขั้นตอนร่วมกับผู้ประกอบการเกษตร</p></div>' : '') +
+      (locked ? '' : '<div class="tui-box__footer" style="justify-content:flex-start;padding-top:var(--tui-space-3x)"><button type="button" class="tui-button tui-button--outline tui-button--sm" data-action="add-step">' + icon('i-plus') + ' เพิ่มขั้นตอน</button></div>') +
+      '</div>';
+  }
+
+  function openPanel() {
+    var items = openItems();
+    var groups = [
+      {kind: 'question', title: 'คำถามที่ยังค้าง', hint: 'บันทึกจากการสนทนาและคำถามของทีม'},
+      {kind: 'unknown', title: 'ยังไม่ทราบ', hint: 'ยังไม่มีข้อมูล'},
+      {kind: 'assumed', title: 'สมมติฐาน — ต้องพิสูจน์', hint: 'ทีมคาดการณ์เอง'},
+      {kind: 'stated', title: 'มีผู้ให้ข้อมูล — ยังไม่ยืนยัน', hint: 'ใครให้ข้อมูล และเชื่อจากอะไร?'},
+      {kind: 'stepdays', title: 'ระยะเวลาขั้นตอนที่ยังไม่ทราบ', hint: 'จากร่างขั้นตอนงาน'}
+    ];
+    var body = groups.map(function (g) {
+      var list = items.filter(function (i) { return i.kind === g.kind; });
+      if (!list.length) { return ''; }
+      return '<div class="open-group"><div class="tui-row tui-gap-2"><h3 class="tui-title-sm tui-grow">' + esc(g.title) + '</h3>' +
+        '<span class="tui-label tui-tnum tui-text-neutral">' + list.length + '</span></div>' +
+        '<p class="tui-smallprint tui-text-neutral">' + esc(g.hint) + '</p><ul class="open-list">' +
+        list.map(openItemHtml).join('') + '</ul></div>';
+    }).join('');
+    return '<div class="tui-box tui-box--caution section-anchor" id="sec-open"><span class="tui-box__accent"></span>' +
+      '<div class="tui-box__header"><h2 class="tui-title-md tui-grow">ยังไม่รู้ / ต้องตัดสินใจ</h2><span class="tui-tag tui-tag--caution tui-tnum" data-derived="open-count">' + items.length + '</span></div>' +
+      '<div class="tui-box__content open-panel__content" data-derived="open-body">' +
+        '<p class="tui-label tui-text-neutral">ทุกอย่างที่ยังไม่ "ยืนยันแล้ว" ถือว่ายังเปิดอยู่ · กดรายการเพื่อไปที่ช่องนั้น</p>' +
+        (items.length ? body : '<div class="tui-empty-state">' + icon('i-check', 'tui-icon--xl tui-icon--tone-positive') + '<p class="tui-regular">ไม่มีเรื่องที่ยังเปิดอยู่</p></div>') +
+      '</div></div>';
+  }
+
+  function openItemHtml(i) {
+    var label, sub;
+    if (i.kind === 'question') {
+      var q = state.questions.filter(function (x) { return x.id === i.id; })[0];
+      label = esc(q.text); sub = esc(q.source);
+      return '<li><button type="button" class="open-item open-item--question" data-goto="sec-questions"><span>' + label + '</span><span class="tui-smallprint tui-text-neutral">' + sub + '</span></button></li>';
+    }
+    if (i.kind === 'stepdays') {
+      var st = state.steps.filter(function (x) { return x.no === i.no; })[0];
+      return '<li><button type="button" class="open-item open-item--stepdays" data-goto="step-days-' + i.no + '"><span>ขั้นตอน ' + i.no + ': ' + esc(st.name || '(ยังไม่มีชื่อ)') + '</span></button></li>';
+    }
+    var f = fieldDef(i.sec, i.key);
+    var val = state.values[i.sec][i.key];
+    label = i.kind === 'unknown' ? esc(f.q) : esc(f.label) + ' — ' + esc(val.v);
+    sub = esc(sectionDef(i.sec).title) + (i.kind === 'unknown' ? '' : ' · ' + esc(f.q));
+    return '<li><button type="button" class="open-item open-item--' + i.kind + '" data-goto="f-' + i.sec + '-' + i.key + '"><span>' + label + '</span><span class="tui-smallprint tui-text-neutral">' + sub + '</span></button></li>';
+  }
+
+  // Updates only derived regions so an input being typed into keeps focus.
+  function refreshDerived() {
+    SECTIONS.forEach(function (s) {
+      var el = document.querySelector('[data-derived="counts-' + s.id + '"]');
+      if (el) { el.innerHTML = countTags(counts([s.id])); }
+    });
+    var open = document.getElementById('sec-open');
+    if (open) {
+      var tmp = document.createElement('div');
+      tmp.innerHTML = openPanel();
+      open.replaceWith(tmp.firstChild);
+    }
+    var p = document.getElementById('hdrProduct');
+    if (p) { p.innerHTML = valueText(state.values.market.product); }
+    var s = document.getElementById('hdrSite');
+    if (s) { s.innerHTML = valueText(state.values.production.site); }
+    saveState();
+  }
+
+  /* ===========================================================================
+     Screen: Decision view
+     =========================================================================== */
+  function renderDecision() {
+    renderHeader('decision', state.started ? '<a class="tui-button tui-button--primary" href="#/operations">ไปที่การดำเนินงาน ' + icon('i-chevron-right') + '</a>' : '');
+    var c = counts();
+    var qn = openQuestions().length;
+    function summaryBox(title, sec, keys) {
+      return '<div class="tui-box"><div class="tui-box__header"><h2 class="tui-title-md tui-grow">' + esc(title) + '</h2>' + countTags(counts([sec])) + '</div>' +
+        '<div class="tui-box__content"><dl class="dl">' + keys.map(function (k) { return dlRow(sec, k); }).join('') + '</dl></div></div>';
+    }
+    var html =
+      '<div class="grid-3">' +
+        summaryBox('ตลาด', 'market', ['buyer', 'demand', 'price', 'delivery', 'credit', 'commercial']) +
+        summaryBox('การผลิต', 'production', ['site', 'method', 'area', 'target']) +
+        summaryBox('การเงิน', 'finance', ['budget', 'capex', 'opex', 'revenue']) +
+      '</div>' +
+      '<div class="grid-3">' +
+        '<div class="tui-box tui-box--caution"><span class="tui-box__accent"></span><div class="tui-box__header"><h2 class="tui-title-md tui-grow">สิ่งที่ยังไม่ยืนยัน</h2></div>' +
+          '<div class="tui-box__content"><dl class="dl">' +
+            '<dt>ยังไม่ทราบ</dt><dd class="tui-tnum">' + c.unknown + ' รายการ</dd>' +
+            '<dt>สมมติฐาน</dt><dd class="tui-tnum">' + c.assumed + ' รายการ</dd>' +
+            '<dt>มีผู้ให้ข้อมูล (ยังไม่ยืนยัน)</dt><dd class="tui-tnum">' + c.stated + ' รายการ</dd>' +
+            '<dt>ยืนยันแล้ว</dt><dd class="tui-tnum">' + c.confirmed + ' รายการ</dd>' +
+            '<dt>คำถามที่ยังค้าง</dt><dd class="tui-tnum">' + qn + ' ข้อ</dd>' +
+            '<dt>ขั้นตอนงาน (ร่าง)</dt><dd class="tui-tnum">' + state.steps.length + ' ขั้น · ระยะเวลายังไม่ทราบ ' + missingDays().length + ' ขั้น</dd>' +
+          '</dl></div>' +
+          '<div class="tui-box__footer"><a class="tui-button tui-button--ghost tui-button--sm" href="#/initiation/open">ดูรายการทั้งหมด</a></div></div>' +
+        '<div class="tui-box tui-box--ghost"><div class="tui-box__header"><h2 class="tui-title-md">คำถามก่อนตัดสินใจ</h2></div>' +
+          '<div class="tui-box__content tui-stack tui-gap-2"><p class="tui-paragraph">“ถ้ามีข้อมูลเท่านี้ พี่เริ่ม project หรือยัง?”</p>' + promptsList() + '</div></div>' +
+      '</div>';
+    if (state.started) {
+      html += '<div class="tui-message tui-message--positive">' + icon('i-check', 'tui-icon--tone-positive') +
+        '<span>เริ่มโครงการแล้วเมื่อ ' + fmtTime(state.startedAt) + ' — สถานะหลักฐานยังคงเดิม ไม่ได้ถูกเปลี่ยนเป็น "ยืนยันแล้ว"</span></div>';
+    } else {
+      html += '<div class="tui-box tui-box--primary"><span class="tui-box__accent"></span>' +
+        '<div class="tui-box__header"><h2 class="tui-title-md tui-grow">เริ่มโครงการ</h2></div>' +
+        '<div class="tui-box__content"><p class="tui-regular">เมื่อเริ่ม ขั้นตอนงานที่ร่างไว้จะกลายเป็นงานในการดำเนินงาน ข้อมูลที่ยังไม่ยืนยันจะยังติดอยู่กับโครงการและแก้ต่อได้</p></div>' +
+        '<div class="tui-box__footer"><a class="tui-button tui-button--outline" href="#/initiation">กลับไปแก้ข้อมูล</a>' +
+        '<button type="button" class="tui-button tui-button--primary" id="btnStart" data-action="open-start">เริ่มโครงการ</button></div></div>';
+    }
+    document.getElementById('pageContent').innerHTML = html;
+  }
+
+  /* ===========================================================================
+     Start confirmation (TUI modal, Esc closes)
+     =========================================================================== */
+  var lastFocus = null;
+  function openStartModal() {
+    var c = counts();
+    var layer = document.getElementById('modalLayer');
+    lastFocus = document.activeElement;
+    layer.innerHTML =
+      '<div class="tui-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalDesc" tabindex="-1" id="startDialog">' +
+        '<div class="tui-box__header"><h2 class="tui-title-md tui-grow" id="modalTitle">เริ่มโครงการ?</h2>' +
+          '<button type="button" class="tui-button tui-button--ghost tui-button--icon-only" data-action="close-modal" aria-label="ปิด">' + icon('i-x') + '</button></div>' +
+        '<div class="tui-box__content tui-stack tui-gap-4" id="modalDesc">' +
+          '<div class="tui-message tui-message--caution">' + icon('i-alert', 'tui-icon--tone-caution') +
+            '<div class="tui-stack tui-gap-1"><span class="tui-message__title">ข้อมูลบางส่วนยังไม่ได้รับการยืนยัน</span>' +
+            '<ul class="plain-list">' +
+              '<li>ยังไม่ทราบ: <span class="tui-tnum">' + c.unknown + '</span> รายการ</li>' +
+              '<li>สมมติฐาน: <span class="tui-tnum">' + c.assumed + '</span> รายการ</li>' +
+              '<li>มีผู้ให้ข้อมูล: <span class="tui-tnum">' + c.stated + '</span> รายการ</li>' +
+              '<li>คำถามที่ยังค้าง: <span class="tui-tnum">' + openQuestions().length + '</span> ข้อ</li>' +
+            '</ul></div></div>' +
+          '<p class="tui-regular">การเริ่มโครงการ <strong>ไม่ได้</strong> ทำให้ข้อมูลเหล่านี้กลายเป็น "ยืนยันแล้ว" — ทุกรายการยังเปิดอยู่และติดตามต่อได้หลังเริ่ม</p>' +
+          '<p class="tui-label tui-text-neutral">ขั้นตอนงาน ' + state.steps.length + ' ขั้นจะถูกสร้างเป็นงานในการดำเนินงาน</p>' +
+        '</div>' +
+        '<div class="tui-box__footer">' +
+          '<button type="button" class="tui-button tui-button--outline" data-action="close-modal" id="btnBack">กลับไปตรวจสอบ</button>' +
+          '<button type="button" class="tui-button tui-button--primary" data-action="confirm-start" id="btnConfirmStart">เริ่มโครงการ</button>' +
+        '</div>' +
+      '</div>';
+    layer.hidden = false;
+    document.getElementById('btnBack').focus();
+  }
+  function closeModal() {
+    var layer = document.getElementById('modalLayer');
+    if (layer.hidden) { return; }
+    layer.hidden = true;
+    layer.innerHTML = '';
+    var back = lastFocus && lastFocus !== document.body && document.body.contains(lastFocus) ? lastFocus : document.getElementById('btnStart');
+    if (back) { back.focus(); }
+  }
+  function trapFocus(e) {
+    var layer = document.getElementById('modalLayer');
+    if (layer.hidden || e.key !== 'Tab') { return; }
+    var f = layer.querySelectorAll('button:not([disabled]), [href], input, select');
+    if (!f.length) { return; }
+    var first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
+    else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
+  }
+
+  function startProject() {
+    var now = new Date().toISOString();
+    state.started = true;
+    state.startedAt = now;
+    state.justStarted = true;
+    state.ops = state.steps.map(function (s) {
+      return {no: s.no, name: s.name || '(ยังไม่มีชื่อ)', owner: s.owner, days: s.days, passed: false, passedAt: null};
+    });
+    state.log = [{at: now, text: 'เริ่มโครงการ — สร้างงาน ' + state.ops.length + ' ขั้นตอนจากแผนโครงการ (ข้อมูลที่ยังไม่ยืนยันยังเปิดอยู่ ' + openItems().length + ' รายการ)'}];
+    saveState();
+    closeModal();
+    location.hash = '#/operations';
+  }
+
+  /* ===========================================================================
+     Screen: Operations
+     =========================================================================== */
+  function renderOperations(anchor) {
+    renderHeader('operations', '');
+    if (!state.started) {
+      document.getElementById('pageContent').innerHTML =
+        '<div class="tui-box"><div class="tui-empty-state">' + icon('i-list', 'tui-icon--xl tui-icon--tone-neutral') +
+        '<p class="tui-regular">โครงการยังไม่เริ่ม</p><p class="tui-label">งานและกิจกรรมจะเกิดขึ้นเมื่อเริ่มโครงการจากหน้าสรุปเพื่อตัดสินใจ</p>' +
+        '<a class="tui-button tui-button--primary" href="#/decision">ไปที่สรุปเพื่อตัดสินใจ</a></div></div>';
+      return;
+    }
+    var passed = state.ops.filter(function (o) { return o.passed; }).length;
+    var total = state.ops.length;
+    var html = '';
+    if (state.justStarted) {
+      html += '<div class="tui-message tui-message--positive" role="status">' + icon('i-check', 'tui-icon--tone-positive') +
+        '<div class="tui-stack tui-gap-1"><span class="tui-message__title">เริ่มโครงการแล้ว</span>' +
+        '<span>แผนโครงการกลายเป็นการดำเนินงานของโครงการเดียวกัน — ข้อมูลที่ยังไม่ยืนยันยังไม่ถูกเปลี่ยนสถานะ</span></div>' +
+        '<button type="button" class="tui-button tui-button--ghost tui-button--icon-only" data-action="dismiss-started" aria-label="ปิดข้อความ">' + icon('i-x') + '</button></div>';
+    }
+    html +=
+      '<div class="tui-box section-anchor" id="sec-progress"><div class="tui-box__content tui-stack tui-gap-2">' +
+        '<div class="tui-row tui-gap-2"><h2 class="tui-title-md tui-grow">ความคืบหน้าขั้นตอนการดำเนินงาน</h2>' +
+        '<span class="tui-regular tui-tnum" id="progressText">' + passed + ' / ' + total + ' ขั้นตอนผ่านแล้ว</span></div>' +
+        '<div class="tui-progress tui-progress--positive" role="progressbar" aria-label="ความคืบหน้าขั้นตอนการดำเนินงาน" aria-valuemin="0" aria-valuemax="' + total + '" aria-valuenow="' + passed + '">' +
+          '<div class="tui-progress__bar" style="width:' + (total ? Math.round(100 * passed / total) : 0) + '%"></div></div>' +
+        '<p class="tui-label tui-text-neutral">นับจากขั้นตอนที่เช็คผ่านเท่านั้น — ไม่ใช่ความคืบหน้าการผลิตหรือการเงิน</p>' +
+      '</div></div>' +
+      '<div class="workspace"><div class="workspace__main">' +
+        '<div class="tui-box"><div class="tui-box__header"><h2 class="tui-title-md tui-grow">แผนการดำเนินงาน</h2><span class="tui-label tui-text-neutral">จากขั้นตอนงานในแผนโครงการ</span></div>' +
+        '<div class="tui-table-wrap"><table class="tui-table"><thead><tr>' +
+          '<th scope="col" class="tui-table__num steps__no">#</th><th scope="col">ขั้นตอน</th><th scope="col">ผู้รับผิดชอบ</th>' +
+          '<th scope="col" class="tui-table__num">ระยะเวลา (วัน)</th><th scope="col">สถานะ</th><th scope="col"><span class="visually-hidden">การดำเนินงาน</span></th>' +
+        '</tr></thead><tbody>' +
+        state.ops.map(function (o, i) {
+          return '<tr><td class="tui-table__num tui-tnum">' + o.no + '</td><td>' + esc(o.name) + '</td>' +
+            '<td>' + (o.owner ? esc(o.owner) : '<span class="value-unknown">ยังไม่ระบุ</span>') + '</td>' +
+            '<td class="tui-table__num tui-tnum">' + (o.days === null || o.days === '' ? '<span class="value-unknown">ยังไม่ทราบ</span>' : esc(o.days)) + '</td>' +
+            '<td>' + (o.passed ? '<span class="tui-tag tui-tag--positive">' + icon('i-check') + 'ผ่านแล้ว</span>' : '<span class="tui-tag">รอดำเนินการ</span>') + '</td>' +
+            '<td>' + (o.passed
+              ? '<span class="tui-label tui-text-neutral tui-tnum">' + fmtTime(o.passedAt) + '</span>'
+              : '<button type="button" class="tui-button tui-button--outline tui-button--sm" data-action="check-step" data-index="' + i + '">เช็คผ่าน</button>') + '</td></tr>';
+        }).join('') +
+        '</tbody></table></div>' +
+        (state.ops.length === 0 ? '<div class="tui-empty-state">' + icon('i-list', 'tui-icon--xl tui-icon--tone-neutral') + '<p class="tui-regular">โครงการนี้เริ่มโดยไม่มีขั้นตอนงาน</p></div>' : '') +
+        '</div>' +
+        '<div class="tui-box"><div class="tui-box__header"><h2 class="tui-title-md">บันทึกการดำเนินงาน</h2></div><div class="tui-box__content">' +
+          '<ul class="log-list">' + state.log.slice().reverse().map(function (l) {
+            return '<li><time class="tui-tnum" datetime="' + l.at + '">' + fmtTime(l.at) + '</time><span>' + esc(l.text) + '</span></li>';
+          }).join('') + '</ul></div></div>' +
+      '</div><aside class="workspace__aside">' +
+        '<div class="tui-box tui-box--caution"><span class="tui-box__accent"></span><div class="tui-box__header"><h2 class="tui-title-md tui-grow">ยังไม่รู้ / ต้องตัดสินใจ</h2>' +
+          '<span class="tui-tag tui-tag--caution tui-tnum">' + openItems().length + '</span></div>' +
+          '<div class="tui-box__content tui-stack tui-gap-2"><p class="tui-regular">ข้อมูลที่ยังไม่ยืนยันยังติดอยู่กับโครงการ แม้เริ่มดำเนินงานแล้ว</p>' +
+          countTags(counts()) + '</div>' +
+          '<div class="tui-box__footer"><a class="tui-button tui-button--ghost tui-button--sm" href="#/initiation/open">ติดตามต่อที่หน้าริเริ่มโครงการ</a></div></div>' +
+      '</aside></div>';
+    document.getElementById('pageContent').innerHTML = html;
+    if (anchor) { scrollToId('sec-' + anchor); }
+  }
+
+  /* ===========================================================================
+     Router
+     =========================================================================== */
+  function scrollToId(id) {
+    var el = document.getElementById(id);
+    if (!el) { return; }
+    el.scrollIntoView({block: el.tagName === 'INPUT' ? 'center' : 'start'});
+    if (el.tagName === 'INPUT') { el.focus({preventScroll: true}); }
+  }
+
+  function route() {
+    var parts = (location.hash || '#/overview').replace(/^#\//, '').split('/');
+    var page = parts[0] || 'overview';
+    var anchor = parts[1] || '';
+    if (['overview', 'initiation', 'decision', 'operations'].indexOf(page) < 0) { page = 'overview'; }
+    closeModal();
+    if (page === 'overview') { renderOverview(); }
+    if (page === 'initiation') { renderInitiation(anchor); }
+    if (page === 'decision') { renderDecision(); }
+    if (page === 'operations') { renderOperations(anchor); }
+    document.querySelectorAll('.nav-item[data-route]').forEach(function (a) {
+      var r = a.getAttribute('data-route');
+      var current = r === page && !(page === 'operations' && anchor === 'progress') || (r === 'operations-progress' && page === 'operations' && anchor === 'progress');
+      if (current) { a.setAttribute('aria-current', 'page'); } else { a.removeAttribute('aria-current'); }
+    });
+    if (!anchor) {
+      window.scrollTo(0, 0);
+      var t = document.getElementById('pageTitle');
+      if (t) { t.focus({preventScroll: true}); }
+    }
+  }
+
+  /* ===========================================================================
+     Events (delegated)
+     =========================================================================== */
+  document.addEventListener('input', function (e) {
+    var t = e.target;
+    var role = t.getAttribute('data-role');
+    if (role === 'value') {
+      var row = t.closest('tr');
+      var sec = row.getAttribute('data-sec'), key = row.getAttribute('data-key');
+      var field = state.values[sec][key];
+      field.v = t.value;
+      // Typing never confirms: unknown → มีผู้ให้ข้อมูล; clearing → ยังไม่ทราบ.
+      if (!t.value.trim()) { field.s = 'unknown'; }
+      else if (field.s === 'unknown') { field.s = 'stated'; }
+      row.querySelector('[data-cell="status"]').innerHTML = statusControl(sec, fieldDef(sec, key));
+      refreshDerived();
+    } else if (role && role.indexOf('step-') === 0) {
+      var i = Number(t.closest('tr').getAttribute('data-step'));
+      var step = state.steps[i];
+      if (role === 'step-name') { step.name = t.value; }
+      if (role === 'step-owner') { step.owner = t.value; }
+      if (role === 'step-days') { step.days = t.value === '' ? null : Number(t.value); }
+      refreshDerived();
+    }
+  });
+
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.getAttribute('data-role') === 'status') {
+      var row = t.closest('tr');
+      var sec = row.getAttribute('data-sec'), key = row.getAttribute('data-key');
+      // Status changes never touch the value.
+      state.values[sec][key].s = t.value;
+      var cell = row.querySelector('[data-cell="status"]');
+      cell.innerHTML = statusControl(sec, fieldDef(sec, key));
+      cell.querySelector('select').focus();
+      refreshDerived();
+    }
+  });
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-action], [data-goto], [data-scroll]');
+    if (!t) { return; }
+    if (t.hasAttribute('data-goto')) { scrollToId(t.getAttribute('data-goto')); return; }
+    if (t.hasAttribute('data-scroll')) { scrollToId(t.getAttribute('data-scroll')); return; }
+    var action = t.getAttribute('data-action');
+    if (action === 'open-start') { openStartModal(); }
+    if (action === 'close-modal') { closeModal(); }
+    if (action === 'confirm-start') { startProject(); }
+    if (action === 'toggle-question') {
+      var q = state.questions.filter(function (x) { return x.id === t.getAttribute('data-id'); })[0];
+      q.answered = !q.answered;
+      saveState();
+      renderInitiation();
+      scrollToId('sec-questions');
+    }
+    if (action === 'add-step') {
+      state.steps.push({no: state.steps.length + 1, name: '', owner: '', days: null});
+      saveState();
+      renderInitiation();
+      scrollToId('sec-steps');
+      var inputs = document.querySelectorAll('[data-role="step-name"]');
+      if (inputs.length) { inputs[inputs.length - 1].focus(); }
+    }
+    if (action === 'remove-step') {
+      state.steps.splice(Number(t.getAttribute('data-index')), 1);
+      state.steps.forEach(function (s, idx) { s.no = idx + 1; });
+      saveState();
+      renderInitiation();
+      scrollToId('sec-steps');
+    }
+    if (action === 'check-step') {
+      var o = state.ops[Number(t.getAttribute('data-index'))];
+      o.passed = true;
+      o.passedAt = new Date().toISOString();
+      state.log.push({at: o.passedAt, text: 'เช็คผ่าน: ขั้นตอน ' + o.no + ' — ' + o.name});
+      state.justStarted = false;
+      saveState();
+      renderOperations();
+      var passed = state.ops.filter(function (x) { return x.passed; }).length;
+      toast('เช็คผ่านขั้นตอน ' + o.no + ' แล้ว (' + passed + ' / ' + state.ops.length + ')');
+      var next = document.querySelector('[data-action="check-step"]');
+      (next || document.getElementById('progressText')).focus();
+    }
+    if (action === 'dismiss-started') {
+      state.justStarted = false;
+      saveState();
+      renderOperations();
+    }
+  });
+
+  document.getElementById('modalLayer').addEventListener('click', function (e) {
+    if (e.target === this) { closeModal(); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { closeModal(); }
+    trapFocus(e);
+  });
+
+  document.getElementById('btnReset').addEventListener('click', function () {
+    state = initialState();
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
+    if (location.hash === '#/overview') { route(); } else { location.hash = '#/overview'; }
+    toast('รีเซ็ตกลับเป็นตัวอย่างแคนตาลูปเริ่มต้นแล้ว', 'info');
+  });
+
+  // Theme: <html data-theme>, remembered in localStorage['tui-theme'] (design.md §6).
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.getElementById('iconTheme').setAttribute('href', theme === 'dark' ? '#i-sun' : '#i-moon');
+    document.getElementById('btnTheme').setAttribute('aria-label', theme === 'dark' ? 'เปลี่ยนเป็นธีมสว่าง' : 'เปลี่ยนเป็นธีมมืด');
+  }
+  document.getElementById('btnTheme').addEventListener('click', function () {
+    var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    try { localStorage.setItem('tui-theme', next); } catch (e) { /* ignore */ }
+  });
+  try { applyTheme(localStorage.getItem('tui-theme') === 'dark' ? 'dark' : 'light'); } catch (e) { applyTheme('light'); }
+
+  document.getElementById('btnNav').addEventListener('click', function () {
+    var sb = document.getElementById('sidebar');
+    var open = sb.getAttribute('data-open') === 'true';
+    sb.setAttribute('data-open', String(!open));
+  });
+
+  window.addEventListener('hashchange', route);
+  route();
+})();
+</script>
+</body>
+</html>
