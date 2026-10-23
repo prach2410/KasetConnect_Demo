@@ -1,4 +1,4 @@
-// Regenerates index.html from every .html/.md/.pdf file under this folder, newest first.
+// Regenerates index.html from every .html/.pdf file (skips backup/ and .md) under this folder, newest first.
 // Run: node build-index.mjs
 // Title  <- <title> (html), first "# " heading (md), or file name (pdf)
 // Detail <- <meta name="description"> (html), first paragraph (md), or file size (pdf)
@@ -8,7 +8,7 @@ import { join, relative, extname, basename, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
-const SKIP_DIRS = new Set(['.git', 'node_modules']);
+const SKIP_DIRS = new Set(['.git', 'node_modules', 'backup']);
 const SKIP_FILES = new Set(['index.html', 'README.md']);
 
 const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -21,7 +21,7 @@ function walk(dir, out = []) {
     const full = join(dir, name);
     const st = statSync(full);
     if (st.isDirectory()) walk(full, out);
-    else if (/\.(html?|md|pdf)$/i.test(name) && !SKIP_FILES.has(relative(root, full))) out.push({ full, st });
+    else if (/\.(html?|pdf)$/i.test(name) && !SKIP_FILES.has(relative(root, full))) out.push({ full, st });
   }
   return out;
 }
